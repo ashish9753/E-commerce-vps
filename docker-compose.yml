@@ -1,0 +1,60 @@
+services:
+  # ── Frontend (React / Nginx) ───────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./E-Commerce-Frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - ecommerce-net
+
+  # ── Backend (Node / Express) ──────────────────────────────────────────────
+  # MONGO_URI comes from .env (Atlas) — not overridden here.
+  api:
+    build:
+      context: "./E Commerce Backend"
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    env_file:
+      - "./E Commerce Backend/.env"
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      CLIENT_URL: http://localhost:3000
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ecommerce-net
+
+  # ── Redis ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ecommerce-net
+
+networks:
+  ecommerce-net:
+    driver: bridge
+
+volumes:
+  redis_data:
