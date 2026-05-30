@@ -29,6 +29,7 @@ app.use(helmet());
 const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:3000",
   "https://e-commerce-frontend-9vtd.onrender.com",
+  "https://tradeenginee.cloud",
 ];
 // Exported so Socket.io (server.js) shares the exact same allowlist — otherwise
 // websocket connections from the Render frontend get blocked even though REST
