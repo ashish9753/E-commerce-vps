@@ -12,7 +12,9 @@ import { OrderProvider } from './context/OrderContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { CatalogProvider } from './context/CatalogContext';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  '675768933989-v8j8ab7vjbvh1s3vpv1jhoq8vmtq0183.apps.googleusercontent.com';
 
 // Prevent mouse wheel from changing number input values globally
 document.addEventListener('wheel', () => {
