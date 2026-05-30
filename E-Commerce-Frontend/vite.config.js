@@ -11,7 +11,7 @@ export default defineConfig({
     // absolute baseURL from src/api/client.js).
     proxy: {
       '/api': {
-        target: 'http://82.29.164.26',
+        target: 'https://tradeenginee.cloud',
         changeOrigin: true,
       },
     },
