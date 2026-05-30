@@ -6,6 +6,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: /api/v1
+        VITE_GOOGLE_CLIENT_ID: 675768933989-v8j8ab7vjbvh1s3vpv1jhoq8vmtq0183.apps.googleusercontent.com
     ports:
       - "3000:3000"
     depends_on:
@@ -15,7 +16,6 @@ services:
       - ecommerce-net
 
   # ── Backend (Node / Express) ──────────────────────────────────────────────
-  # MONGO_URI comes from .env (Atlas) — not overridden here.
   api:
     build:
       context: "./E Commerce Backend"

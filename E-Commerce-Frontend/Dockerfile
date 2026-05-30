@@ -11,9 +11,13 @@ COPY package*.json ./
 # Install dependencies
 RUN npm ci
 
-# Accept API URL at build time (Vite bakes VITE_* vars into the static bundle)
+# Vite build arguments
 ARG VITE_API_BASE_URL=/api/v1
+ARG VITE_GOOGLE_CLIENT_ID
+
+# Make them available during build
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 
 # Copy source code
 COPY . .
