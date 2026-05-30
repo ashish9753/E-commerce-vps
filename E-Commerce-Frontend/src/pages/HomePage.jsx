@@ -88,6 +88,20 @@ function SectionTitle({ children }) {
   return <h2 className="myn-section-title">{children}</h2>;
 }
 
+function SectionHeader({ title, link }) {
+  const navigate = useNavigate();
+  return (
+    <div className="myn-section-header">
+      <h2 className="myn-section-header-title">{title}</h2>
+      {link && (
+        <button className="myn-view-all-btn" onClick={() => navigate(link)}>
+          View All →
+        </button>
+      )}
+    </div>
+  );
+}
+
 /* ───────────────────────────── LIVE EVENTS ───────────────────────────── */
 // Compact "X left" string for the countdown chip. Resolution drops as the
 // remaining window shrinks so the chip stays punchy: days → hours → minutes.
@@ -383,7 +397,7 @@ function RisingStars({ products }) {
 
   return (
     <section>
-      <SectionTitle>Rising Stars</SectionTitle>
+      <SectionHeader title="Rising Stars" link="/products?sort=popular" />
       <div className="myn-brand-row">
         {items.map((product) => (
           <button className="myn-star-card" key={product._id} onClick={() => navigate(`/product/${product._id}`)}>
@@ -414,14 +428,12 @@ function RisingStars({ products }) {
 
 function MedalBrands({ brands }) {
   const navigate = useNavigate();
-  // Only real, active brands. No hardcoded fallback list — if nothing is in the
-  // catalog the section simply doesn't render.
-  const list = brands.filter((brand) => brand.isActive !== false).slice(0, 6);
+  const list = brands.filter((brand) => brand.isActive !== false);
   if (!list.length) return null;
 
   return (
     <section>
-      <SectionTitle>Medal Worthy Brands To Bag</SectionTitle>
+      <SectionHeader title="Medal Worthy Brands To Bag" link="/brands" />
       <div className="myn-medal-row">
         {list.map((brand) => (
           <button
@@ -478,7 +490,7 @@ function ShopByCategory({ categories, products = [] }) {
 
   return (
     <section>
-      <SectionTitle>Shop By Category</SectionTitle>
+      <SectionHeader title="Shop By Category" link="/products" />
       <div className="myn-category-grid">
         {displayCategories.map((category, index) => {
           const key = category.name.toLowerCase();
@@ -500,6 +512,45 @@ function ShopByCategory({ categories, products = [] }) {
             </button>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+function CategoryProductRow({ category, products }) {
+  const navigate = useNavigate();
+  const items = (products || []).slice(0, 12);
+  if (!items.length) return null;
+
+  return (
+    <section>
+      <SectionHeader
+        title={category.name}
+        link={`/products?category=${encodeURIComponent(category.name)}`}
+      />
+      <div className="myn-brand-row">
+        {items.map((product) => (
+          <button className="myn-star-card" key={product._id} onClick={() => navigate(`/product/${product._id}`)}>
+            <div className="myn-star-img">
+              {getProductImage(product) ? (
+                <img src={getProductImage(product)} alt={product.name} />
+              ) : (
+                <PackageCheck size={58} />
+              )}
+            </div>
+            <div className="myn-star-offer">
+              <span>{product.brand || category.name}</span>
+              <p>{product.name}</p>
+              {product.price > 0 && (
+                <div className="myn-star-price">
+                  {fmtPrice(product.price)}
+                  {product.was > product.price && <s>{fmtPrice(product.was)}</s>}
+                </div>
+              )}
+              <strong>{getDiscountLabel(product)}</strong>
+            </div>
+          </button>
+        ))}
       </div>
     </section>
   );
@@ -564,6 +615,7 @@ export default function HomePage() {
   const [products, setProducts] = useState([]);
   const [coupons, setCoupons] = useState([]);
   const [banners, setBanners] = useState([]);
+  const [categoryProducts, setCategoryProducts] = useState({});
 
   useEffect(() => {
     cached(
@@ -582,6 +634,22 @@ export default function HomePage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (!topCategories.length) return;
+    topCategories.forEach((cat) => {
+      cached(
+        `home:catrow:${cat.name}`,
+        10 * 60 * 1000,
+        () => productsApi.getAll({ category: cat.name, sort: 'popular', limit: 12 })
+          .then(({ data }) => normalizeProducts(data.data?.products || data.data?.data || [])),
+      ).then((prods) => {
+        if (prods.length > 0) {
+          setCategoryProducts((prev) => ({ ...prev, [cat.name]: prods }));
+        }
+      }).catch(() => {});
+    });
+  }, [topCategories]);
+
   return (
     <main className="myn-home">
       <HeroMyntraStyle banners={banners} />
@@ -591,6 +659,13 @@ export default function HomePage() {
         <RisingStars products={products} />
         <MedalBrands brands={brands} />
         <ShopByCategory categories={topCategories} products={products} />
+        {topCategories.map((cat) => (
+          <CategoryProductRow
+            key={cat._id || cat.name}
+            category={cat}
+            products={categoryProducts[cat.name]}
+          />
+        ))}
         <TrustBand />
       </div>
 
@@ -868,20 +943,54 @@ export default function HomePage() {
           color: #30384f;
         }
 
+        /* Section header with title + View All button */
+        .myn-section-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin: 38px 38px 20px;
+        }
+        .myn-section-header-title {
+          font-size: clamp(22px, 2.2vw, 32px);
+          line-height: 1.1;
+          letter-spacing: .18em;
+          text-transform: uppercase;
+          font-weight: 800;
+          color: #30384f;
+          margin: 0;
+        }
+        .myn-view-all-btn {
+          background: transparent;
+          border: 1px solid #e5e7eb;
+          border-radius: 999px;
+          padding: 8px 18px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #0f172a;
+          cursor: pointer;
+          font-family: inherit;
+          transition: background .15s, border-color .15s;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .myn-view-all-btn:hover {
+          background: #f3f4f6;
+          border-color: #d1d5db;
+        }
+
         .myn-brand-row,
         .myn-medal-row {
-          display: grid;
-          grid-template-columns: repeat(5, minmax(180px, 1fr));
-          gap: 10px;
+          display: flex;
           overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          scroll-behavior: smooth;
+          gap: 10px;
           padding-bottom: 22px;
         }
 
         /* Rising Stars: horizontal carousel so all items are reachable by
            scrolling sideways instead of being squeezed into a fixed grid. */
         .myn-brand-row {
-          display: flex;
-          grid-template-columns: none;
           scroll-snap-type: x mandatory;
           scroll-behavior: smooth;
         }
@@ -893,8 +1002,9 @@ export default function HomePage() {
           scroll-snap-align: start;
         }
 
-        .myn-medal-row {
-          grid-template-columns: repeat(6, minmax(170px, 1fr));
+        .myn-medal-row .myn-medal-card {
+          flex: 0 0 max(200px, calc((100% - 50px) / 6));
+          scroll-snap-align: start;
         }
 
         .myn-star-card,
@@ -1186,9 +1296,10 @@ export default function HomePage() {
         @media (max-width: 1180px) {
           .myn-brand-row,
           .myn-medal-row {
-            grid-template-columns: repeat(5, minmax(220px, 1fr));
             padding: 0 18px 20px;
           }
+
+          .myn-section-header { margin: 32px 18px 16px; }
 
           .myn-category-grid {
             grid-template-columns: repeat(4, minmax(140px, 1fr));
@@ -1279,10 +1390,10 @@ export default function HomePage() {
             letter-spacing: .14em;
           }
 
+          .myn-section-header { margin: 28px 16px 14px; }
+
           .myn-brand-row,
           .myn-medal-row {
-            display: flex;
-            overflow-x: auto;
             padding: 0 16px 18px;
           }
 

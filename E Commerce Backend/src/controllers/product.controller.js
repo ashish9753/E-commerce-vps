@@ -101,7 +101,12 @@ export const getProducts = async (req, res, next) => {
         filter.category = cat._id;
       }
     }
-    if (brand) filter.brand = { $regex: brand, $options: "i" };
+    if (brand) {
+      const brandList = brand.split(',').map(b => b.trim()).filter(Boolean);
+      filter.brand = brandList.length > 1
+        ? { $in: brandList.map(b => new RegExp(`^${b}$`, 'i')) }
+        : { $regex: brandList[0], $options: 'i' };
+    }
     if (isFeatured) filter.isFeatured = isFeatured === "true";
     if (minPrice || maxPrice) {
       filter.price = {};

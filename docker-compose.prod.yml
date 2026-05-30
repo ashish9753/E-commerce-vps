@@ -1,0 +1,57 @@
+# Production compose — uses pre-built images pulled from GHCR.
+# The deploy workflow sets GHCR_OWNER automatically.
+# Run manually:  GHCR_OWNER=<your-github-username> docker compose -f docker-compose.prod.yml up -d
+
+services:
+  # ── Frontend (React / Nginx) ───────────────────────────────────────────────
+  frontend:
+    image: ghcr.io/${GHCR_OWNER}/ecommerce-frontend:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - ecommerce-net
+
+  # ── Backend (Node / Express) ──────────────────────────────────────────────
+  api:
+    image: ghcr.io/${GHCR_OWNER}/ecommerce-api:latest
+    ports:
+      - "5000:5000"
+    env_file:
+      - "./E Commerce Backend/.env"
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      CLIENT_URL: http://localhost:3000
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ecommerce-net
+
+  # ── Redis ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ecommerce-net
+
+networks:
+  ecommerce-net:
+    driver: bridge
+
+volumes:
+  redis_data:

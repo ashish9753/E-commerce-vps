@@ -60,7 +60,7 @@ export default function ProductListPage() {
       if (category) params.category = category;
       if (query) params.search = query;
       if (onSale) params.onSale = 'true';
-      if (filters.brands.length === 1) params.brand = filters.brands[0];
+      if (filters.brands.length > 0) params.brand = filters.brands.join(',');
 
       // Price range: pick the widest span of selected ranges
       if (filters.prices.length > 0) {
@@ -80,6 +80,12 @@ export default function ProductListPage() {
 
       const { data } = await productsApi.getAll(params);
       let normalized = normalizeProducts(data.data?.products || data.data?.data || []);
+
+      // Client-side brand filter — covers multi-brand and backends that only regex-match one brand
+      if (filters.brands.length > 0) {
+        const lc = filters.brands.map(b => b.toLowerCase());
+        normalized = normalized.filter(p => lc.includes((p.brand || '').toLowerCase()));
+      }
 
       // Client-side rating filter
       if (filters.ratings.length > 0) {
