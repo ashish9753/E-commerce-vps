@@ -10,7 +10,6 @@ import { mongoSanitize } from "./middleware/sanitize.middleware.js";
 import routes from "./routes/index.js";
 
 const app = express();
-
 // We're deployed behind Render's edge proxy, which adds X-Forwarded-For. Tell
 // Express to trust the first hop so `req.ip` is the real client IP, not the
 // proxy's. Without this, rate limiters, IP logging, and secure-cookie
