@@ -78,12 +78,16 @@ export const getProducts = async (req, res, next) => {
     const { search, category, brand, minPrice, maxPrice, sort, isFeatured, onSale } = req.query;
 
     const filter = { isDeleted: false, isPublished: true };
+    // Computed-field ($expr) conditions accumulate here so multiple of them
+    // (the sale check and the effective-price range) can coexist in one query.
+    const exprConds = [];
+
     // ?onSale=true → only products with a real discount (discountPrice
     // present and strictly less than the regular price). Used by the
     // storefront's "Flash Sale" / "Events & Offers" nav links.
     if (onSale === "true") {
       filter.discountPrice = { $gt: 0 };
-      filter.$expr = { $lt: ["$discountPrice", "$price"] };
+      exprConds.push({ $lt: ["$discountPrice", "$price"] });
     }
     if (category) {
       // Accept either an ObjectId or a category name/slug. If a name is
@@ -111,12 +115,25 @@ export const getProducts = async (req, res, next) => {
         : { $regex: brandList[0], $options: 'i' };
     }
     if (isFeatured) filter.isFeatured = isFeatured === "true";
+
+    // Price range filters on the price the customer actually pays — the
+    // discounted price when there's a real discount, otherwise the MRP. This
+    // matches the figure shown on the product card; filtering on the raw MRP
+    // would wrongly include items whose sale price falls outside the range.
     if (minPrice || maxPrice) {
-      filter.price = {};
-      if (minPrice) filter.price.$gte = parseFloat(minPrice);
-      if (maxPrice) filter.price.$lte = parseFloat(maxPrice);
+      const effectivePrice = {
+        $cond: [
+          { $and: [{ $gt: ["$discountPrice", 0] }, { $lt: ["$discountPrice", "$price"] }] },
+          "$discountPrice",
+          "$price",
+        ],
+      };
+      if (minPrice) exprConds.push({ $gte: [effectivePrice, parseFloat(minPrice)] });
+      if (maxPrice) exprConds.push({ $lte: [effectivePrice, parseFloat(maxPrice)] });
     }
     if (search) filter.$text = { $search: search };
+
+    if (exprConds.length) filter.$expr = exprConds.length === 1 ? exprConds[0] : { $and: exprConds };
 
     const sortOptions = {
       newest: { createdAt: -1 },

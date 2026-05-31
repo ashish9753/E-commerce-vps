@@ -14,6 +14,18 @@ const SORT_OPTIONS = [
   { label: 'Rating', value: 'rating' },
 ];
 
+// Pagination controls — rendered both above and below the grid.
+function Pager({ page, totalPages, onChange, className = '' }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className={`flex justify-center gap-2 ${className}`}>
+      <button className="btn btn-ghost btn-sm" disabled={page === 1} onClick={() => onChange(page - 1)}>← Prev</button>
+      <span className="text-sm text-mute self-center">Page {page} of {totalPages}</span>
+      <button className="btn btn-ghost btn-sm" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>Next →</button>
+    </div>
+  );
+}
+
 export default function ProductListPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -114,6 +126,10 @@ export default function ProductListPage() {
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [category, query, sort, filters, onSale]);
 
+  // On page change, jump back to the top so the new page starts from the top
+  // of the list instead of leaving the user scrolled at the bottom.
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [page]);
+
   const title = query
     ? `Search: "${query}"`
     : category
@@ -178,19 +194,14 @@ export default function ProductListPage() {
             </div>
           ) : (
             <>
+              <Pager page={page} totalPages={Math.ceil(total / limit)} onChange={setPage} className="mb-6" />
               <div
                 className="grid grid-cols-3 gap-5 max-md:grid-cols-2 transition-opacity duration-200"
                 style={{ opacity: loading ? 0.5 : 1, pointerEvents: loading ? 'none' : 'auto' }}
               >
                 {products.map(p => <ProductCard key={p._id} product={p} />)}
               </div>
-              {total > limit && (
-                <div className="flex justify-center gap-2 mt-10">
-                  <button className="btn btn-ghost btn-sm" disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</button>
-                  <span className="text-sm text-mute self-center">Page {page} of {Math.ceil(total / limit)}</span>
-                  <button className="btn btn-ghost btn-sm" disabled={page * limit >= total} onClick={() => setPage(p => p + 1)}>Next →</button>
-                </div>
-              )}
+              <Pager page={page} totalPages={Math.ceil(total / limit)} onChange={setPage} className="mt-10" />
             </>
           )}
         </div>
