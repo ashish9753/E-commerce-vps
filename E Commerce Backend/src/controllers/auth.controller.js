@@ -133,7 +133,7 @@ export const login = async (req, res, next) => {
 
     const user = await User.findOne({ email }).select("+password +refreshToken");
     if (!user || !(await user.comparePassword(password))) {
-      throw new ApiError(401, "Invalid email or password");
+      throw new ApiError(401, "User not found");
     }
     if (user.isBlocked) throw new ApiError(403, "Your account has been blocked");
 

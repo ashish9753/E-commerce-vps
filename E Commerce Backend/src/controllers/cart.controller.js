@@ -49,6 +49,11 @@ const getOrCreateCart = async (userId) => {
   return cart;
 };
 
+// Fields the cart UI needs for each line item. Keep in sync with getCart so
+// that mutation responses (add/update/remove) carry the same populated shape
+// the frontend already has — otherwise setCart() would wipe images/titles.
+const CART_PRODUCT_SELECT = "title price discountPrice images stock isDeleted isPublished brand category";
+
 export const getCart = async (req, res, next) => {
   try {
     const cart = await Cart.findOne({ user: req.user._id }).populate({
@@ -97,7 +102,7 @@ export const addToCart = async (req, res, next) => {
 
     cart.recalculate();
     await cart.save();
-    await cart.populate("items.product", "title price discountPrice images stock");
+    await cart.populate("items.product", CART_PRODUCT_SELECT);
 
     res.json(new ApiResponse(200, { cart }, "Item added to cart"));
   } catch (err) {
@@ -123,6 +128,7 @@ export const updateCartItem = async (req, res, next) => {
     item.quantity = qty;
     cart.recalculate();
     await cart.save();
+    await cart.populate("items.product", CART_PRODUCT_SELECT);
 
     res.json(new ApiResponse(200, { cart }, "Cart updated"));
   } catch (err) {
@@ -139,6 +145,7 @@ export const removeFromCart = async (req, res, next) => {
     cart.items = cart.items.filter((i) => i.product.toString() !== productId);
     cart.recalculate();
     await cart.save();
+    await cart.populate("items.product", CART_PRODUCT_SELECT);
 
     res.json(new ApiResponse(200, { cart }, "Item removed from cart"));
   } catch (err) {

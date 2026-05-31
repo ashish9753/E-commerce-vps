@@ -65,6 +65,16 @@ client.interceptors.response.use(
     const originalToken = original.headers?.Authorization?.replace('Bearer ', '') || null;
     const serverMessage = error.response?.data?.message || '';
 
+    // A 401 from the auth endpoints themselves is NOT an expired access token,
+    // so it must never trigger the refresh-retry dance. A 401 from /auth/login
+    // means wrong credentials; from /auth/refresh-token it means the session is
+    // genuinely gone. Let the real error surface to the caller (e.g. the login
+    // page shows "User not found" instead of "Refresh token required").
+    const isAuthEndpoint = /\/auth\/(login|register|refresh-token|google)/.test(original.url || '');
+    if (error.response?.status === 401 && isAuthEndpoint) {
+      return Promise.reject(error);
+    }
+
     // Server-side single-session enforcement: the account was just used to
     // log in on another device. Skip the refresh dance and force a clean
     // logout with a clear toast so the user knows what happened.

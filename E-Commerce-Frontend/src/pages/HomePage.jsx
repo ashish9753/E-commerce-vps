@@ -6,6 +6,7 @@ import {
   ArrowRight,
   BadgePercent,
   Camera,
+  ChevronLeft,
   ChevronRight,
   Headphones,
   Laptop,
@@ -336,7 +337,7 @@ function HeroMyntraStyle({ banners = [] }) {
   return (
     <section className={`myn-hero myn-hero-banner${current.clean ? ' myn-hero-clean' : ''}`}>
       <button className="myn-hero-arrow left" onClick={() => move(-1)} aria-label="Previous banner">
-        <ArrowLeft size={22} />
+        <ChevronLeft size={32} strokeWidth={2.5} />
       </button>
       <div
         className="myn-hero-bgmedia"
@@ -374,7 +375,7 @@ function HeroMyntraStyle({ banners = [] }) {
         </div>
       </div>
       <button className="myn-hero-arrow right" onClick={() => move(1)} aria-label="Next banner">
-        <ArrowRight size={22} />
+        <ChevronRight size={32} strokeWidth={2.5} />
       </button>
       <div className="myn-dots" aria-label="Banner slides">
         {slides.map((slide, slideIndex) => (
@@ -712,11 +713,14 @@ export default function HomePage() {
           display: block;
           transition: opacity .35s ease;
         }
+        /* No full-image darkening — keep the banner artwork crisp and real.
+           A soft gradient sits only behind the text safe-zone (left third)
+           so admin overlay text stays legible without dimming the product. */
         .myn-hero-bgmedia::after {
           content: '';
           position: absolute;
           inset: 0;
-          background: linear-gradient(90deg, rgba(0,0,0,.45) 0%, rgba(0,0,0,.15) 50%, rgba(0,0,0,.45) 100%);
+          background: linear-gradient(90deg, rgba(0,0,0,.28) 0%, rgba(0,0,0,.05) 30%, transparent 55%);
           pointer-events: none;
         }
         .myn-hero-overlay {
@@ -887,23 +891,34 @@ export default function HomePage() {
           cursor: pointer;
         }
 
+        /* Amazon-style clean chevron arrows — circular, semi-transparent,
+           floating just inside the banner edges. No solid gray block. */
         .myn-hero-arrow {
           position: absolute;
           top: 50%;
           z-index: 4;
           width: 46px;
-          height: 72px;
+          height: 46px;
+          border-radius: 50%;
           border: 0;
-          background: rgba(38, 43, 62, .72);
-          color: #fff;
+          background: rgba(255, 255, 255, .55);
+          color: #1a1a1a;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           cursor: pointer;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+          transition: background .2s, box-shadow .2s, transform .15s;
+        }
+        .myn-hero-arrow:hover {
+          background: rgba(255, 255, 255, .95);
+          box-shadow: 0 4px 14px rgba(0, 0, 0, .28);
         }
 
-        .myn-hero-arrow.left { left: 0; transform: translateY(-50%); }
-        .myn-hero-arrow.right { right: 0; transform: translateY(-50%); }
+        .myn-hero-arrow.left  { left: 16px;  transform: translateY(-50%); }
+        .myn-hero-arrow.right { right: 16px; transform: translateY(-50%); }
+        .myn-hero-arrow.left:hover  { transform: translateY(-50%) scale(1.08); }
+        .myn-hero-arrow.right:hover { transform: translateY(-50%) scale(1.08); }
 
         .myn-dots {
           position: absolute;
@@ -1435,8 +1450,10 @@ export default function HomePage() {
         @media (max-width: 520px) {
           .myn-hero-arrow {
             width: 38px;
-            height: 58px;
+            height: 38px;
           }
+          .myn-hero-arrow.left  { left: 10px; }
+          .myn-hero-arrow.right { right: 10px; }
 
           .myn-category-label {
             margin: -74px 8px 0;
