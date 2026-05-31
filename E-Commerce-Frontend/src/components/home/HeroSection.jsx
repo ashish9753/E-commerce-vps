@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const SLIDES = [
@@ -36,13 +36,43 @@ const SLIDES = [
 
 export default function HeroSection() {
   const [slide, setSlide] = useState(0);
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const dragX     = useRef(null);   // stores pointer-down X
+  const isDragging = useRef(false);
+  const MIN_SWIPE = 50;             // px threshold to trigger slide change
 
-  // Auto-swap every 4.5 seconds — runs continuously, no pause
+  // Auto-swap every 4.5 seconds
   useEffect(() => {
     const id = setInterval(() => setSlide(s => (s + 1) % SLIDES.length), 4500);
     return () => clearInterval(id);
   }, []);
+
+  const goNext = () => setSlide(s => (s + 1) % SLIDES.length);
+  const goPrev = () => setSlide(s => (s - 1 + SLIDES.length) % SLIDES.length);
+
+  // ── Touch handlers (mobile swipe) ────────────────────────────────────────
+  const onTouchStart = (e) => { dragX.current = e.touches[0].clientX; };
+  const onTouchEnd   = (e) => {
+    if (dragX.current === null) return;
+    const delta = e.changedTouches[0].clientX - dragX.current;
+    if (Math.abs(delta) >= MIN_SWIPE) delta < 0 ? goNext() : goPrev();
+    dragX.current = null;
+  };
+
+  // ── Mouse drag handlers (desktop) ────────────────────────────────────────
+  const onMouseDown = (e) => { dragX.current = e.clientX; isDragging.current = false; };
+  const onMouseMove = (e) => {
+    if (dragX.current === null) return;
+    if (Math.abs(e.clientX - dragX.current) > 5) isDragging.current = true;
+  };
+  const onMouseUp = (e) => {
+    if (dragX.current === null) return;
+    const delta = e.clientX - dragX.current;
+    if (Math.abs(delta) >= MIN_SWIPE) delta < 0 ? goNext() : goPrev();
+    dragX.current = null;
+  };
+  // Prevent accidental link/button clicks after a drag
+  const onClickCapture = (e) => { if (isDragging.current) { e.stopPropagation(); isDragging.current = false; } };
 
   const cur = SLIDES[slide];
 
@@ -50,8 +80,18 @@ export default function HeroSection() {
     <div style={{ background: '#c8d6e0', width: '100%' }}>
       <div style={{ width: '100%', height: 'clamp(200px, 38vw, 460px)' }}>
 
-        {/* Banner */}
-        <div style={{ flex: 1, position: 'relative', overflow: 'hidden', lineHeight: 0 }}>
+        {/* Banner — swipeable / draggable */}
+        <div
+          style={{ flex: 1, position: 'relative', overflow: 'hidden', lineHeight: 0,
+            cursor: 'grab', userSelect: 'none' }}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={() => { dragX.current = null; }}
+          onClickCapture={onClickCapture}
+        >
           {/* Slides */}
           <div style={{
             display: 'flex', height: '100%',
