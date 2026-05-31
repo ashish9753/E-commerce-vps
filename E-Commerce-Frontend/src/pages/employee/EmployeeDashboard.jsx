@@ -1051,29 +1051,41 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
   const removeSpec = (i) => setSpecs(s => s.filter((_,j) => j !== i));
   const setSpec    = (i, field, val) => setSpecs(s => s.map((r,j) => j===i ? {...r,[field]:val} : r));
 
-  // Edit mode: once attributes load, pull any saved spec that matches an
-  // attribute name into the attribute dropdowns and drop it from the manual
-  // spec rows so it isn't shown (or saved) twice. Runs once.
+  // Edit mode: once this sub-category's attributes are known, pull any saved
+  // attribute values into the attribute dropdowns and drop those keys from the
+  // manual spec rows so they aren't shown (or saved) twice. Runs once.
+  //
+  // We read the values straight from `initial.specifications` (the product's
+  // saved data) rather than from the mutable `specs` state. The old version
+  // moved values via a closure split across two setState calls, which was
+  // timing-sensitive and could drop them — and since it ALSO removed the rows
+  // from `specs`, a failed capture meant the next save wiped the attributes.
   useEffect(() => {
     if (attrReconciled.current || !isEditMode || !allAttrs.length) return;
     const names = new Set(subAttrs.map(a => a.name));
     // This sub-category's attributes may not be resolved yet (allAttrs loads
     // async, and subAttrs depends on form.category). Just wait — do NOT mark
-    // reconciliation done here, or a single early pass would permanently leave
-    // the attribute dropdowns blank on reopen.
+    // reconciliation done, or a single early pass would permanently leave the
+    // attribute dropdowns blank on reopen.
     if (!names.size) return;
+
+    const rawSpecs = initial?.specifications instanceof Map
+      ? Object.fromEntries(initial.specifications)
+      : (initial?.specifications || {});
     const picked = {};
-    setSpecs(prev => {
-      const kept = prev.filter(r => {
-        const k = r.key?.trim();
-        if (k && names.has(k)) { picked[k] = r.value; return false; }
-        return true;
-      });
-      return kept.length ? kept : [{ key:'', value:'' }];
-    });
+    for (const [k, v] of Object.entries(rawSpecs)) {
+      if (names.has(k)) picked[k] = v;
+    }
+
     setAttrVals(v => ({ ...picked, ...v }));
+    // Hide attribute keys from the manual spec rows (they're edited via the
+    // dropdowns above, not the free-form spec table).
+    setSpecs(prev => {
+      const kept = prev.filter(r => !names.has(r.key?.trim()));
+      return kept.length ? kept : [{ key: '', value: '' }];
+    });
     attrReconciled.current = true;
-  }, [allAttrs, isEditMode, subAttrs]);
+  }, [allAttrs, isEditMode, subAttrs, initial]);
 
   const mrp    = Number(form.price)||0;
   const sale   = Number(form.discountPrice)||0;

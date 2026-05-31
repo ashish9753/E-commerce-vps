@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AirVent,
@@ -449,39 +449,50 @@ function MedalBrands({ brands }) {
   const list = brands.filter((brand) => brand.isActive !== false);
   if (!list.length) return null;
 
+  // Build a seamless right→left marquee. Pad to at least ~10 cards so the strip
+  // fills wide screens, then duplicate the whole set — the CSS animates the
+  // track by exactly -50% (one set) so it loops with no visible jump.
+  const minItems = Math.max(list.length, 10);
+  const base = Array.from({ length: minItems }, (_, i) => list[i % list.length]);
+  const loop = [...base, ...base];
+
   return (
     <section>
       <SectionHeader title="Medal Worthy Brands To Bag" link="/brands" />
-      <div className="myn-medal-row">
-        {list.map((brand) => (
-          <button
-            className="myn-medal-card"
-            key={brand._id || brand.name}
-            onClick={() => navigate(`/products?brand=${encodeURIComponent(brand.name)}`)}
-          >
-            <div className="myn-medal-img">
-              {brand.logo ? (
-                <img
-                  src={brand.logo}
-                  alt={brand.name}
-                  onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
-                />
-              ) : null}
-              <div style={{
-                display: brand.logo ? 'none' : 'flex',
-                width: 80, height: 80, borderRadius: '50%',
-                background: 'linear-gradient(135deg,#FF5A1F22,#FF5A1F44)',
-                alignItems: 'center', justifyContent: 'center',
-                fontSize: 36, fontWeight: 900, color: '#FF5A1F', letterSpacing: '-1px',
-              }}>
-                {brand.name.charAt(0).toUpperCase()}
+      <div className="myn-brand-marquee">
+        <div className="myn-brand-marquee-track">
+          {loop.map((brand, i) => (
+            <button
+              className="myn-medal-card"
+              key={`${brand._id || brand.name}-${i}`}
+              onClick={() => navigate(`/products?brand=${encodeURIComponent(brand.name)}`)}
+              aria-hidden={i >= base.length ? true : undefined}
+              tabIndex={i >= base.length ? -1 : undefined}
+            >
+              <div className="myn-medal-img">
+                {brand.logo ? (
+                  <img
+                    src={brand.logo}
+                    alt={brand.name}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                  />
+                ) : null}
+                <div style={{
+                  display: brand.logo ? 'none' : 'flex',
+                  width: 80, height: 80, borderRadius: '50%',
+                  background: 'linear-gradient(135deg,#FF5A1F22,#FF5A1F44)',
+                  alignItems: 'center', justifyContent: 'center',
+                  fontSize: 36, fontWeight: 900, color: '#FF5A1F', letterSpacing: '-1px',
+                }}>
+                  {brand.name.charAt(0).toUpperCase()}
+                </div>
               </div>
-            </div>
-            <div className="myn-medal-copy">
-              <span>{brand.name}</span>
-            </div>
-          </button>
-        ))}
+              <div className="myn-medal-copy">
+                <span>{brand.name}</span>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -489,14 +500,24 @@ function MedalBrands({ brands }) {
 
 function ShopByCategory({ categories, products = [] }) {
   const navigate = useNavigate();
-  // Only real categories from the catalog. No hardcoded fallback list and no
-  // fabricated "% OFF" overlay — the Category model has no offer field, so we
-  // simply don't show one. Hide the whole section when nothing is configured.
-  const displayCategories = useMemo(
-    () => categories.slice(0, 12),
-    [categories],
-  );
-  if (!displayCategories.length) return null;
+  // Paginate ALL categories into pages of 12 (6×2) and let the user swipe /
+  // swap left-right between pages. No hardcoded fallback list and no fabricated
+  // "% OFF" overlay — the Category model has no offer field.
+  const PAGE_SIZE = 12;
+  const pages = useMemo(() => {
+    const out = [];
+    for (let i = 0; i < categories.length; i += PAGE_SIZE) out.push(categories.slice(i, i + PAGE_SIZE));
+    return out;
+  }, [categories]);
+
+  const [page, setPage] = useState(0);
+  const dragX = useRef(null);
+  const pageCount = pages.length;
+
+  // Keep the active page valid if the category list changes.
+  useEffect(() => { setPage((p) => (p > pageCount - 1 ? 0 : p)); }, [pageCount]);
+
+  if (!categories.length) return null;
 
   const getCategoryImage = (categoryName) => {
     const needle = categoryName.toLowerCase();
@@ -506,31 +527,66 @@ function ShopByCategory({ categories, products = [] }) {
     return match ? getProductImage(match) : '';
   };
 
+  const goPrev = () => setPage((p) => (p - 1 + pageCount) % pageCount);
+  const goNext = () => setPage((p) => (p + 1) % pageCount);
+  const onTouchStart = (e) => { dragX.current = e.touches[0].clientX; };
+  const onTouchEnd = (e) => {
+    if (dragX.current == null) return;
+    const delta = e.changedTouches[0].clientX - dragX.current;
+    if (Math.abs(delta) > 40) (delta < 0 ? goNext() : goPrev());
+    dragX.current = null;
+  };
+
   return (
     <section>
       <SectionHeader title="Shop By Category" link="/products" />
-      <div className="myn-category-grid">
-        {displayCategories.map((category, index) => {
-          const key = category.name.toLowerCase();
-          const Icon = categoryIcons[key] || categoryIcons[key.replace('&', '').trim()] || PackageCheck;
-          const categoryImg = category.image || getCategoryImage(category.name);
-          return (
-            <button
-              className="myn-category-card"
-              key={category._id || category.name}
-              onClick={() => navigate(`/products?category=${encodeURIComponent(category.name)}`)}
-            >
-              <div className={`myn-category-visual tone-${index % 6}`}>
-                {categoryImg ? <img src={categoryImg} alt={category.name} /> : <Icon size={70} strokeWidth={1.5} />}
+      <div className="myn-cat-carousel">
+        {pageCount > 1 && (
+          <button className="myn-cat-arrow left" onClick={goPrev} aria-label="Previous categories">
+            <ChevronLeft size={26} strokeWidth={2.5} />
+          </button>
+        )}
+        <div className="myn-cat-viewport" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+          <div className="myn-cat-track" style={{ transform: `translateX(-${page * 100}%)` }}>
+            {pages.map((pageCats, pi) => (
+              <div className="myn-category-grid myn-cat-page" key={pi}>
+                {pageCats.map((category, index) => {
+                  const key = category.name.toLowerCase();
+                  const Icon = categoryIcons[key] || categoryIcons[key.replace('&', '').trim()] || PackageCheck;
+                  const categoryImg = category.image || getCategoryImage(category.name);
+                  return (
+                    <button
+                      className="myn-category-card"
+                      key={category._id || category.name}
+                      onClick={() => navigate(`/products?category=${encodeURIComponent(category.name)}`)}
+                    >
+                      <div className={`myn-category-visual tone-${index % 6}`}>
+                        {categoryImg ? <img src={categoryImg} alt={category.name} /> : <Icon size={70} strokeWidth={1.5} />}
+                      </div>
+                      <div className="myn-category-label">
+                        <span>{category.name}</span>
+                        <p>Shop Now</p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              <div className="myn-category-label">
-                <span>{category.name}</span>
-                <p>Shop Now</p>
-              </div>
-            </button>
-          );
-        })}
+            ))}
+          </div>
+        </div>
+        {pageCount > 1 && (
+          <button className="myn-cat-arrow right" onClick={goNext} aria-label="Next categories">
+            <ChevronRight size={26} strokeWidth={2.5} />
+          </button>
+        )}
       </div>
+      {pageCount > 1 && (
+        <div className="myn-cat-dots" aria-label="Category pages">
+          {pages.map((_, i) => (
+            <button key={i} className={i === page ? 'active' : ''} onClick={() => setPage(i)} aria-label={`Category page ${i + 1}`} />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -1040,6 +1096,32 @@ export default function HomePage() {
           padding-bottom: 22px;
         }
 
+        /* ── Brands marquee: continuous right→left auto-scroll ── */
+        .myn-brand-marquee {
+          overflow: hidden;
+          padding-bottom: 22px;
+          /* Soft fade at both edges so cards appear/disappear gracefully. */
+          -webkit-mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
+        }
+        .myn-brand-marquee-track {
+          display: flex;
+          gap: 10px;
+          width: max-content;
+          animation: brand-marquee 38s linear infinite;
+        }
+        /* Pause when the user hovers so they can read / click a logo. */
+        .myn-brand-marquee:hover .myn-brand-marquee-track { animation-play-state: paused; }
+        .myn-brand-marquee .myn-medal-card { flex: 0 0 200px; }
+        @keyframes brand-marquee {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-50%); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .myn-brand-marquee-track { animation: none; }
+          .myn-brand-marquee { overflow-x: auto; }
+        }
+
         /* Rising Stars: horizontal carousel so all items are reachable by
            scrolling sideways instead of being squeezed into a fixed grid. */
         .myn-brand-row {
@@ -1177,6 +1259,58 @@ export default function HomePage() {
           gap: 46px 42px;
           padding: 0 68px 20px;
         }
+
+        /* ── Shop-by-category carousel (paged 12 per view, swipe / arrows) ── */
+        .myn-cat-carousel { position: relative; }
+        .myn-cat-viewport { overflow: hidden; }
+        .myn-cat-track {
+          display: flex;
+          transition: transform .45s cubic-bezier(.4, 0, .2, 1);
+        }
+        .myn-cat-page {
+          flex: 0 0 100%;
+          width: 100%;
+        }
+        .myn-cat-arrow {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          z-index: 4;
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          border: 1px solid #e6e7eb;
+          background: #ffffff;
+          color: #1a1a1a;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(0, 0, 0, .12);
+          transition: background .2s, box-shadow .2s, transform .15s;
+        }
+        .myn-cat-arrow:hover { box-shadow: 0 6px 18px rgba(0, 0, 0, .2); }
+        .myn-cat-arrow.left  { left: 14px; }
+        .myn-cat-arrow.right { right: 14px; }
+        .myn-cat-arrow.left:hover  { transform: translateY(-50%) scale(1.06); }
+        .myn-cat-arrow.right:hover { transform: translateY(-50%) scale(1.06); }
+        .myn-cat-dots {
+          display: flex;
+          justify-content: center;
+          gap: 8px;
+          margin-top: 6px;
+        }
+        .myn-cat-dots button {
+          width: 8px;
+          height: 8px;
+          padding: 0;
+          border: 0;
+          border-radius: 50%;
+          background: #d7d8dd;
+          cursor: pointer;
+          transition: width .25s, background .25s;
+        }
+        .myn-cat-dots button.active { width: 22px; border-radius: 4px; background: #f97316; }
 
         .myn-category-card {
           border: 0;
@@ -1530,6 +1664,12 @@ export default function HomePage() {
             flex: 0 0 260px;
           }
 
+          /* Tighter brand cards in the marquee on phones. */
+          .myn-brand-marquee .myn-medal-card {
+            width: 150px;
+            flex: 0 0 150px;
+          }
+
           .myn-star-img {
             height: 260px;
           }
@@ -1543,6 +1683,10 @@ export default function HomePage() {
             gap: 24px 14px;
             padding: 0 16px 20px;
           }
+
+          /* On phones the side arrows would cover the 2-column cards — rely on
+             swipe + dots instead. */
+          .myn-cat-arrow { display: none; }
 
           .myn-coupons {
             grid-template-columns: 1fr;
