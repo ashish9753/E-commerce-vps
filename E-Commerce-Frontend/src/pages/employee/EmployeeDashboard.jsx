@@ -3194,14 +3194,21 @@ export default function SellerDashboard() {
     if (isMobile) setSidebarOpen(false);
   };
 
+  // Force the (keep-alive) Products tab to remount so it refetches from the
+  // server. Without this, the cached in-memory list still shows pre-edit data,
+  // so reopening a product looks "unedited".
+  const refreshProducts = () => setRefreshKeys(k => ({ ...k, Products: (k.Products || 0) + 1 }));
+
   const handleAddProduct = async (data) => {
     await employeeApi.createProduct(data);
+    refreshProducts();
     handleTabClick('Products');
   };
 
   const handleEditSave = async (data) => {
     await employeeApi.updateProduct(editProduct._id, data);
     setEdit(null);
+    refreshProducts();
     handleTabClick('Products');
   };
 
