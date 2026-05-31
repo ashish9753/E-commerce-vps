@@ -9,25 +9,7 @@ import { getPaginationData, buildPaginatedResponse } from "../utils/pagination.u
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { notifyAdmins } from "../utils/notify.js";
-
-// Products can mix uploaded images (→ Cloudinary) with external image URLs.
-// URLs are stored as-is, keeping those assets off our Cloudinary account
-// (saves storage + cost). Accepts a single value or an array from FormData.
-const isValidImageUrl = (url) => {
-  if (!url || typeof url !== "string") return false;
-  try {
-    const u = new URL(url.trim());
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-};
-
-const normalizeImageUrls = (raw) => {
-  if (!raw) return [];
-  const arr = Array.isArray(raw) ? raw : [raw];
-  return arr.map((u) => (typeof u === "string" ? u.trim() : "")).filter(isValidImageUrl);
-};
+import { normalizeImageUrls } from "../utils/imageUrl.utils.js";
 
 export const createProduct = async (req, res, next) => {
   try {

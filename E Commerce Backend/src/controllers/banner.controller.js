@@ -2,20 +2,9 @@ import Banner from "../models/banner.model.js";
 import { uploadToCloudinary, deleteFromCloudinary, getPublicIdFromUrl } from "../utils/cloudinary.utils.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
+import { isValidImageUrl, toDirectImageUrl } from "../utils/imageUrl.utils.js";
 
 const parseBoolean = (v) => v === true || v === "true" || v === 1 || v === "1";
-
-// An admin/employee may supply an external image URL instead of uploading a
-// file — this keeps the asset off our Cloudinary account (saves storage + cost).
-const isValidImageUrl = (url) => {
-  if (!url || typeof url !== "string") return false;
-  try {
-    const u = new URL(url.trim());
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-};
 
 const pickBannerFields = (body) => {
   const out = {};
@@ -54,7 +43,7 @@ export const createBanner = async (req, res, next) => {
       image = result.secure_url;
       imagePublicId = result.public_id;
     } else if (isValidImageUrl(req.body.imageUrl)) {
-      image = req.body.imageUrl.trim();
+      image = toDirectImageUrl(req.body.imageUrl);
     } else {
       throw new ApiError(400, "Banner image is required — upload a file or provide an image URL");
     }
@@ -125,7 +114,7 @@ export const updateBanner = async (req, res, next) => {
         updates.image = result.secure_url;
         updates.imagePublicId = result.public_id;
       } else {
-        updates.image = req.body.imageUrl.trim();
+        updates.image = toDirectImageUrl(req.body.imageUrl);
         updates.imagePublicId = ""; // external URL — nothing to delete later
       }
     }

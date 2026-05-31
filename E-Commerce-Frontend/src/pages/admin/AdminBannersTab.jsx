@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { bannersApi } from '../../api/banners';
 import { productsApi } from '../../api/products';
 import { C } from '../../theme/dashboardTheme';
+import { isHttpUrl, toDirectImageUrl } from '../../utils/imageUrl';
 
 const POSITIONS = [
   { v: 'left',   label: '⬅ Left' },
@@ -40,12 +41,6 @@ const emptyDraft = {
   imageUrl: '',
   position: 0, isActive: true,
   startDate: '', endDate: '',
-};
-
-const isHttpUrl = (s) => {
-  if (!s || typeof s !== 'string') return false;
-  try { const u = new URL(s.trim()); return u.protocol === 'http:' || u.protocol === 'https:'; }
-  catch { return false; }
 };
 
 function Field({ label, hint, children }) {
@@ -241,7 +236,7 @@ export default function AdminBannersTab() {
     catch (err) { setError(err.response?.data?.message || 'Failed to toggle banner'); }
   };
 
-  const previewImage = filePreview || (isHttpUrl(draft.imageUrl) ? draft.imageUrl.trim() : null) || editingExistingImage;
+  const previewImage = filePreview || (isHttpUrl(draft.imageUrl) ? toDirectImageUrl(draft.imageUrl) : null) || editingExistingImage;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>

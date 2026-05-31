@@ -18,6 +18,7 @@ import AdminCatalogTab from '../admin/AdminCatalogTab';
 import AdminBannersTab from '../admin/AdminBannersTab';
 import { AdminSupportTab } from '../admin/AdminDashboard';
 import { hasPermission, ALL_PERMISSIONS } from '../../utils/permissions';
+import { isHttpUrl, toDirectImageUrl } from '../../utils/imageUrl';
 import OrderPipeline from '../../components/orders/OrderPipeline';
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
@@ -1076,16 +1077,13 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
   const profit = sale > 0 ? sale : mrp;
   const totalImgs = existingImgs.length + newFiles.length + urlImages.length;
 
-  const isHttpUrl = (s) => {
-    if (!s || typeof s !== 'string') return false;
-    try { const u = new URL(s.trim()); return u.protocol === 'http:' || u.protocol === 'https:'; }
-    catch { return false; }
-  };
   const addUrl = () => {
-    const u = urlInput.trim();
-    if (!u) return;
-    if (!isHttpUrl(u)) { alert('Enter a full image link starting with http:// or https://'); return; }
+    const raw = urlInput.trim();
+    if (!raw) return;
+    if (!isHttpUrl(raw)) { alert('Enter a full image link starting with http:// or https://'); return; }
     if (totalImgs >= 5) { alert('You can add up to 5 images in total.'); return; }
+    // Rewrite Google Drive share links to a directly embeddable form.
+    const u = toDirectImageUrl(raw);
     if (existingImgs.includes(u) || urlImages.includes(u)) { setUrlInput(''); return; }
     setUrlImages(prev => [...prev, u]);
     setUrlInput('');
