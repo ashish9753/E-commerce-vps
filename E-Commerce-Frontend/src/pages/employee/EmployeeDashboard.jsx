@@ -1017,6 +1017,8 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
   const [existingImgs, setExistingImgs] = useState(initial?.images || []);
   const [newFiles,     setNewFiles]     = useState([]);      // File objects
   const [newPreviews,  setNewPreviews]  = useState([]);      // data-URL strings
+  const [urlImages,    setUrlImages]    = useState([]);      // external image URLs
+  const [urlInput,     setUrlInput]     = useState('');      // URL being typed
   const [dragOver,     setDragOver]     = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -1072,7 +1074,23 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
   const sale   = Number(form.discountPrice)||0;
   const disc   = mrp > sale && sale > 0 ? Math.round(((mrp-sale)/mrp)*100) : 0;
   const profit = sale > 0 ? sale : mrp;
-  const totalImgs = existingImgs.length + newFiles.length;
+  const totalImgs = existingImgs.length + newFiles.length + urlImages.length;
+
+  const isHttpUrl = (s) => {
+    if (!s || typeof s !== 'string') return false;
+    try { const u = new URL(s.trim()); return u.protocol === 'http:' || u.protocol === 'https:'; }
+    catch { return false; }
+  };
+  const addUrl = () => {
+    const u = urlInput.trim();
+    if (!u) return;
+    if (!isHttpUrl(u)) { alert('Enter a full image link starting with http:// or https://'); return; }
+    if (totalImgs >= 5) { alert('You can add up to 5 images in total.'); return; }
+    if (existingImgs.includes(u) || urlImages.includes(u)) { setUrlInput(''); return; }
+    setUrlImages(prev => [...prev, u]);
+    setUrlInput('');
+  };
+  const removeUrl = (idx) => setUrlImages(prev => prev.filter((_, i) => i !== idx));
 
   /* â"€â"€ file handling â"€â"€ */
   const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
@@ -1131,6 +1149,8 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
       existingImgs.forEach(url => fd.append('keepImages', url));
       // new uploads
       newFiles.forEach(f => fd.append('images', f));
+      // external image links (stored as-is, not uploaded to Cloudinary)
+      urlImages.forEach(u => fd.append('imageUrls', u));
       // specifications — manual key/value rows, then category-attribute
       // selections (these win on key clashes). Only attributes belonging to
       // the currently selected sub-category are saved.
@@ -1355,6 +1375,19 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
                   <span style={{ position:'absolute', bottom:0, left:0, right:0, background:C.accent+'cc', color:'white', fontSize:9, fontWeight:700, textAlign:'center', padding:'2px 0' }}>NEW</span>
                 </div>
               ))}
+              {urlImages.map((url, i) => (
+                <div key={`url-${i}`} style={{ position:'relative', width:90, height:90, borderRadius:8, overflow:'hidden', border:`2px solid ${C.green}` }}>
+                  <img src={url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}
+                    onError={e => { e.currentTarget.style.opacity = 0.3; }} />
+                  <button onClick={() => removeUrl(i)} title="Remove"
+                    style={{ position:'absolute', top:3, right:3, width:20, height:20, borderRadius:'50%',
+                      background:'rgba(0,0,0,.75)', color:'white', border:'none', cursor:'pointer',
+                      fontSize:13, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
+                    x
+                  </button>
+                  <span style={{ position:'absolute', bottom:0, left:0, right:0, background:C.green+'cc', color:'white', fontSize:9, fontWeight:700, textAlign:'center', padding:'2px 0' }}>LINK</span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -1381,6 +1414,26 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
                 style={{ display:'none' }}
                 onChange={e => { addFiles(e.target.files); e.target.value=''; }}
               />
+            </div>
+          )}
+
+          {/* Add image by URL — stored as a link, no upload (saves storage) */}
+          {totalImgs < 5 && (
+            <div style={{ marginTop:12 }}>
+              <label style={{ ...LS, marginBottom:6 }}>Or add image by URL <span style={{ color:C.sub, textTransform:'none', fontWeight:500 }}>— paste a hosted image link</span></label>
+              <div style={{ display:'flex', gap:8 }}>
+                <input
+                  value={urlInput}
+                  onChange={e => setUrlInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addUrl(); } }}
+                  placeholder="https://example.com/image.jpg"
+                  style={{ ...inpStyle, flex:1 }} />
+                <button type="button" onClick={addUrl}
+                  style={{ padding:'0 18px', height:36, borderRadius:8, border:`1px solid ${C.green}`,
+                    background:'transparent', color:C.green, fontWeight:700, fontSize:13, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  + Add Link
+                </button>
+              </div>
             </div>
           )}
         </div>

@@ -5,6 +5,18 @@ import ApiResponse from "../utils/ApiResponse.js";
 
 const parseBoolean = (v) => v === true || v === "true" || v === 1 || v === "1";
 
+// An admin/employee may supply an external image URL instead of uploading a
+// file — this keeps the asset off our Cloudinary account (saves storage + cost).
+const isValidImageUrl = (url) => {
+  if (!url || typeof url !== "string") return false;
+  try {
+    const u = new URL(url.trim());
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
 const pickBannerFields = (body) => {
   const out = {};
   const keys = [
@@ -31,16 +43,23 @@ const pickBannerFields = (body) => {
 
 export const createBanner = async (req, res, next) => {
   try {
-    if (!req.file) throw new ApiError(400, "Banner image is required");
     const fields = pickBannerFields(req.body);
     if (!fields.title) throw new ApiError(400, "Title is required");
 
-    const result = await uploadToCloudinary(req.file.buffer, "ecommerce/banners");
-    const banner = await Banner.create({
-      ...fields,
-      image: result.secure_url,
-      imagePublicId: result.public_id,
-    });
+    // Image can come from an uploaded file (→ Cloudinary) or an external URL.
+    // A URL-backed banner has no imagePublicId, so it's never deleted from Cloudinary.
+    let image, imagePublicId;
+    if (req.file) {
+      const result = await uploadToCloudinary(req.file.buffer, "ecommerce/banners");
+      image = result.secure_url;
+      imagePublicId = result.public_id;
+    } else if (isValidImageUrl(req.body.imageUrl)) {
+      image = req.body.imageUrl.trim();
+    } else {
+      throw new ApiError(400, "Banner image is required — upload a file or provide an image URL");
+    }
+
+    const banner = await Banner.create({ ...fields, image, imagePublicId });
 
     const populated = await Banner.findById(banner._id).populate("product", "title slug images");
     res.status(201).json(new ApiResponse(201, { banner: populated }, "Banner created"));
@@ -91,16 +110,24 @@ export const updateBanner = async (req, res, next) => {
     if (req.body.product === "" || req.body.product === "null") banner.product = undefined;
     if (req.body.link === "") banner.link = "";
 
-    // Replacing the image: delete the old asset from Cloudinary first
-    if (req.file) {
+    // Replacing the image — via a new upload or a new external URL. Either way,
+    // free the old Cloudinary asset first (no-op if the old image was a URL).
+    const wantsFileReplace = !!req.file;
+    const wantsUrlReplace  = !req.file && isValidImageUrl(req.body.imageUrl);
+    if (wantsFileReplace || wantsUrlReplace) {
       const oldPublicId = banner.imagePublicId || getPublicIdFromUrl(banner.image);
       if (oldPublicId) {
         try { await deleteFromCloudinary(oldPublicId); }
         catch (_) { /* swallow — don't block the update if the old asset was already gone */ }
       }
-      const result = await uploadToCloudinary(req.file.buffer, "ecommerce/banners");
-      updates.image = result.secure_url;
-      updates.imagePublicId = result.public_id;
+      if (wantsFileReplace) {
+        const result = await uploadToCloudinary(req.file.buffer, "ecommerce/banners");
+        updates.image = result.secure_url;
+        updates.imagePublicId = result.public_id;
+      } else {
+        updates.image = req.body.imageUrl.trim();
+        updates.imagePublicId = ""; // external URL — nothing to delete later
+      }
     }
 
     Object.assign(banner, updates);

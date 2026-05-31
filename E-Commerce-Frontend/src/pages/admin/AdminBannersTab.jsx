@@ -37,8 +37,15 @@ const emptyDraft = {
   textColor: '#ffffff', textPosition: 'left',
   fontFamily: 'Syne', fontSize: 48, fontWeight: '800', fontStyle: 'normal',
   link: '', product: '',
+  imageUrl: '',
   position: 0, isActive: true,
   startDate: '', endDate: '',
+};
+
+const isHttpUrl = (s) => {
+  if (!s || typeof s !== 'string') return false;
+  try { const u = new URL(s.trim()); return u.protocol === 'http:' || u.protocol === 'https:'; }
+  catch { return false; }
 };
 
 function Field({ label, hint, children }) {
@@ -167,6 +174,9 @@ export default function AdminBannersTab() {
       fontStyle:    b.fontStyle || 'normal',
       link:         b.link || '',
       product:      b.product?._id || b.product || '',
+      // If this banner's image is an external link (no Cloudinary id), show it
+      // in the URL field so it can be edited in place.
+      imageUrl:     b.imagePublicId ? '' : (b.image || ''),
       position:     b.position ?? 0,
       isActive:     b.isActive !== false,
       startDate:    b.startDate ? new Date(b.startDate).toISOString().slice(0,10) : '',
@@ -182,7 +192,12 @@ export default function AdminBannersTab() {
     e.preventDefault();
     setError('');
     if (!draft.title.trim()) { fireToast('Title is required'); return; }
-    if (!editingId && !file) { fireToast('Please choose a banner image'); return; }
+    if (!editingId && !file && !isHttpUrl(draft.imageUrl)) {
+      fireToast('Add a banner image — upload a file or paste an image URL'); return;
+    }
+    if (draft.imageUrl.trim() && !file && !isHttpUrl(draft.imageUrl)) {
+      fireToast('That image URL looks invalid — use a full http(s) link'); return;
+    }
 
     setSaving(true);
     try {
@@ -226,7 +241,7 @@ export default function AdminBannersTab() {
     catch (err) { setError(err.response?.data?.message || 'Failed to toggle banner'); }
   };
 
-  const previewImage = filePreview || editingExistingImage;
+  const previewImage = filePreview || (isHttpUrl(draft.imageUrl) ? draft.imageUrl.trim() : null) || editingExistingImage;
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
@@ -255,6 +270,21 @@ export default function AdminBannersTab() {
                 <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }} onChange={e => onPickFile(e.target.files?.[0])} />
               </div>
             </Field>
+            <div style={{ marginTop:10 }}>
+              <Field label="Or Image URL" hint="paste a hosted image link instead of uploading — saves storage">
+                <input
+                  value={draft.imageUrl}
+                  onChange={e => set('imageUrl', e.target.value)}
+                  placeholder="https://example.com/banner.jpg"
+                  style={inpStyle()}
+                />
+              </Field>
+              {file && draft.imageUrl.trim() && (
+                <div style={{ fontSize:11, color:C.mute, marginTop:5 }}>
+                  An uploaded file is selected — it will be used instead of the URL. Remove the file to use the URL.
+                </div>
+              )}
+            </div>
           </div>
 
           <Field label="Title *">

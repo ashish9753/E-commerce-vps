@@ -10,6 +10,25 @@ import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { notifyAdmins } from "../utils/notify.js";
 
+// Products can mix uploaded images (→ Cloudinary) with external image URLs.
+// URLs are stored as-is, keeping those assets off our Cloudinary account
+// (saves storage + cost). Accepts a single value or an array from FormData.
+const isValidImageUrl = (url) => {
+  if (!url || typeof url !== "string") return false;
+  try {
+    const u = new URL(url.trim());
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const normalizeImageUrls = (raw) => {
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr.map((u) => (typeof u === "string" ? u.trim() : "")).filter(isValidImageUrl);
+};
+
 export const createProduct = async (req, res, next) => {
   try {
     let employee;
@@ -37,6 +56,8 @@ export const createProduct = async (req, res, next) => {
       );
       images = uploads.map((r) => r.secure_url);
     }
+    // Append any external image URLs the seller pasted in.
+    images = [...images, ...normalizeImageUrls(req.body.imageUrls)];
 
     const product = await Product.create({
       employee: employee._id,
@@ -217,10 +238,13 @@ export const updateProduct = async (req, res, next) => {
       const keep = Array.isArray(req.body.keepImages) ? req.body.keepImages : [req.body.keepImages];
       updates.images = keep.filter(Boolean);
     }
-    if (req.files?.length) {
-      const uploads = await Promise.all(req.files.map((f) => uploadToCloudinary(f.buffer, "ecommerce/products")));
+    const newUploads = req.files?.length
+      ? (await Promise.all(req.files.map((f) => uploadToCloudinary(f.buffer, "ecommerce/products")))).map((r) => r.secure_url)
+      : [];
+    const urlImages = normalizeImageUrls(req.body.imageUrls);
+    if (newUploads.length || urlImages.length) {
       const base = updates.images ?? product.images;
-      updates.images = [...base, ...uploads.map((r) => r.secure_url)];
+      updates.images = [...base, ...newUploads, ...urlImages];
     }
 
     const updated = await Product.findByIdAndUpdate(req.params.productId, updates, { new: true });
