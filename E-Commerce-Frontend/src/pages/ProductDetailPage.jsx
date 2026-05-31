@@ -55,20 +55,6 @@ export default function ProductDetailPage() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Keyboard controls for lightbox
-  useEffect(() => {
-    const imgs = product?.images || [];
-    const onKey = (e) => {
-      if (!lightboxOpen) return;
-      if (e.key === 'Escape')      { setLightboxOpen(false); setLightboxZoom(1); }
-      if (e.key === 'ArrowRight')  setActiveThumb(t => Math.min(t + 1, Math.max(0, imgs.length - 1)));
-      if (e.key === 'ArrowLeft')   setActiveThumb(t => Math.max(t - 1, 0));
-      if (e.key === '+')           setLightboxZoom(z => Math.min(4, +(z + 0.5).toFixed(1)));
-      if (e.key === '-')           setLightboxZoom(z => Math.max(1, +(z - 0.5).toFixed(1)));
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [lightboxOpen, product]);
 
   // Tab click handler: on mobile, clicking the open tab again closes it.
   // On desktop, clicks just switch tabs (one is always open).
@@ -295,6 +281,31 @@ export default function ProductDetailPage() {
   const wished   = isWished(product._id);
   const images   = product.images?.length ? product.images : [];
   const thumbs   = images.slice(0, 6);
+
+  // ── Share handlers (defined after product is guaranteed non-null) ──────────
+  const handleShare = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try { await navigator.share({ title: product.name, text: product.name, url }); return; }
+      catch { /* user cancelled */ }
+    }
+    setShareMenuOpen(v => !v);
+  };
+
+  const copyLink = () => {
+    navigator.clipboard?.writeText(window.location.href);
+    setShareCopied(true);
+    toast('Link copied!');
+    setTimeout(() => setShareCopied(false), 2500);
+    setShareMenuOpen(false);
+  };
+
+  // ── Lightbox keyboard handler (inside render, after product guaranteed) ────
+  const onLightboxKey = (e) => {
+    if (e.key === 'Escape')     { setLightboxOpen(false); setLightboxZoom(1); }
+    if (e.key === 'ArrowRight') setActiveThumb(t => Math.min(t + 1, thumbs.length - 1));
+    if (e.key === 'ArrowLeft')  setActiveThumb(t => Math.max(t - 1, 0));
+  };
   const mrp      = Number(product.was || product.price || 0);
   const sale     = Number(product.price || 0);
   const discount = mrp > sale && sale > 0 ? Math.round(((mrp - sale) / mrp) * 100) : 0;
@@ -375,24 +386,6 @@ export default function ProductDetailPage() {
     toast('Coupon removed');
   };
 
-  // ── Share ──────────────────────────────────────────────────────────────────
-  const handleShare = async () => {
-    const url = window.location.href;
-    // Use native share sheet (works on mobile + some desktop browsers)
-    if (navigator.share) {
-      try { await navigator.share({ title: product.name, text: product.name, url }); return; }
-      catch { /* user cancelled — fall through to menu */ }
-    }
-    setShareMenuOpen(v => !v);
-  };
-
-  const copyLink = () => {
-    navigator.clipboard?.writeText(window.location.href);
-    setShareCopied(true);
-    toast('Link copied!');
-    setTimeout(() => setShareCopied(false), 2500);
-    setShareMenuOpen(false);
-  };
 
   const handleReviewImageChange = (e) => {
     const files = Array.from(e.target.files);
@@ -1131,8 +1124,11 @@ export default function ProductDetailPage() {
       {lightboxOpen && (
         <div
           onClick={() => { setLightboxOpen(false); setLightboxZoom(1); }}
+          onKeyDown={onLightboxKey}
+          tabIndex={-1}
           style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.93)',
-            zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}>
+            zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center',
+            outline:'none' }}>
 
           {/* Close × */}
           <button
