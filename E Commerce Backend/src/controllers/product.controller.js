@@ -93,8 +93,9 @@ export const getProducts = async (req, res, next) => {
       // Accept either an ObjectId or a category name/slug. If a name is
       // supplied, look it up case-insensitively. If no Category matches,
       // short-circuit to an empty result instead of throwing a CastError.
+      let catId = null;
       if (mongoose.Types.ObjectId.isValid(category)) {
-        filter.category = category;
+        catId = category;
       } else {
         const cat = await Category.findOne({
           $or: [
@@ -105,8 +106,16 @@ export const getProducts = async (req, res, next) => {
         if (!cat) {
           return res.json(new ApiResponse(200, buildPaginatedResponse([], 0, page, limit)));
         }
-        filter.category = cat._id;
+        catId = cat._id;
       }
+      // Browsing a parent category (e.g. "Televisions") must also surface
+      // products filed under its sub-categories (e.g. "UHD"), since a product's
+      // `category` is the most specific sub-category. So match the category
+      // itself OR any of its children.
+      const subCats = await Category.find({ parent: catId }).select("_id");
+      filter.category = subCats.length
+        ? { $in: [catId, ...subCats.map((c) => c._id)] }
+        : catId;
     }
     if (brand) {
       const brandList = brand.split(',').map(b => b.trim()).filter(Boolean);

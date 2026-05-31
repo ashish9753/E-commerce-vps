@@ -1057,7 +1057,11 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
   useEffect(() => {
     if (attrReconciled.current || !isEditMode || !allAttrs.length) return;
     const names = new Set(subAttrs.map(a => a.name));
-    if (!names.size) { attrReconciled.current = true; return; }
+    // This sub-category's attributes may not be resolved yet (allAttrs loads
+    // async, and subAttrs depends on form.category). Just wait — do NOT mark
+    // reconciliation done here, or a single early pass would permanently leave
+    // the attribute dropdowns blank on reopen.
+    if (!names.size) return;
     const picked = {};
     setSpecs(prev => {
       const kept = prev.filter(r => {
