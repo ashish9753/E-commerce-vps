@@ -86,6 +86,8 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key:      ${{ secrets.SSH_PRIVATE_KEY }}
           port:     22
+          timeout:  60s
+          command_timeout: 15m
           envs:     GHCR_TOKEN,GH_ACTOR
           script: |
             set -e
