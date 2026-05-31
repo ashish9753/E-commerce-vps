@@ -36,41 +36,19 @@ const SLIDES = [
 
 export default function HeroSection() {
   const [slide, setSlide] = useState(0);
-  const [hovered, setHovered] = useState(false);
   const navigate = useNavigate();
 
+  // Auto-swap every 4.5 seconds — runs continuously, no pause
   useEffect(() => {
-    if (hovered) return;
     const id = setInterval(() => setSlide(s => (s + 1) % SLIDES.length), 4500);
     return () => clearInterval(id);
-  }, [hovered]);
+  }, []);
 
-  const prev = () => setSlide(s => (s - 1 + SLIDES.length) % SLIDES.length);
-  const next = () => setSlide(s => (s + 1) % SLIDES.length);
-  const cur  = SLIDES[slide];
+  const cur = SLIDES[slide];
 
   return (
-    <div
-      style={{ background: '#c8d6e0', width: '100%' }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* ── Amazon-style: [arrow] [banner] [arrow] ── */}
-      <div style={{ display: 'flex', alignItems: 'stretch', width: '100%', height: 'clamp(200px, 38vw, 460px)' }}>
-
-        {/* Left arrow strip */}
-        <div style={{
-          width: 14, flexShrink: 0,
-          background: 'linear-gradient(to right, #c8d6e0, #dbe8ef)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', transition: 'background .2s',
-        }}
-          onClick={prev}
-          onMouseEnter={e => e.currentTarget.style.background = 'linear-gradient(to right,#b0c4cf,#c8d6e0)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'linear-gradient(to right,#c8d6e0,#dbe8ef)'}
-        >
-          <span style={{ fontSize: 13, color: '#555', fontWeight: 400, userSelect: 'none' }}>‹</span>
-        </div>
+    <div style={{ background: '#c8d6e0', width: '100%' }}>
+      <div style={{ width: '100%', height: 'clamp(200px, 38vw, 460px)' }}>
 
         {/* Banner */}
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden', lineHeight: 0 }}>
@@ -158,19 +136,6 @@ export default function HeroSection() {
           </div>
         </div>
 
-        {/* Right arrow strip */}
-        <div style={{
-          width: 14, flexShrink: 0,
-          background: 'linear-gradient(to left, #c8d6e0, #dbe8ef)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', transition: 'background .2s',
-        }}
-          onClick={next}
-          onMouseEnter={e => e.currentTarget.style.background = 'linear-gradient(to left,#b0c4cf,#c8d6e0)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'linear-gradient(to left,#c8d6e0,#dbe8ef)'}
-        >
-          <span style={{ fontSize: 13, color: '#555', fontWeight: 400, userSelect: 'none' }}>›</span>
-        </div>
       </div>
 
       <style>{`
