@@ -55,6 +55,21 @@ export default function ProductDetailPage() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
+  // Keyboard controls for lightbox
+  useEffect(() => {
+    const imgs = product?.images || [];
+    const onKey = (e) => {
+      if (!lightboxOpen) return;
+      if (e.key === 'Escape')      { setLightboxOpen(false); setLightboxZoom(1); }
+      if (e.key === 'ArrowRight')  setActiveThumb(t => Math.min(t + 1, Math.max(0, imgs.length - 1)));
+      if (e.key === 'ArrowLeft')   setActiveThumb(t => Math.max(t - 1, 0));
+      if (e.key === '+')           setLightboxZoom(z => Math.min(4, +(z + 0.5).toFixed(1)));
+      if (e.key === '-')           setLightboxZoom(z => Math.max(1, +(z - 0.5).toFixed(1)));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightboxOpen, product]);
+
   // Tab click handler: on mobile, clicking the open tab again closes it.
   // On desktop, clicks just switch tabs (one is always open).
   const handleTabClick = (tab) => {
@@ -75,6 +90,10 @@ export default function ProductDetailPage() {
   // Buy Now flow via navigation state.
   const [appliedCoupon, setAppliedCoupon] = useState(null); // { code, discount, freebie? }
   const [freebieModal, setFreebieModal] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxZoom, setLightboxZoom] = useState(1);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const [shareCopied, setShareCopied]   = useState(false);
 
   const [reviewRating, setReviewRating]       = useState(0);
   const [reviewHover, setReviewHover]         = useState(0);
@@ -356,6 +375,25 @@ export default function ProductDetailPage() {
     toast('Coupon removed');
   };
 
+  // ── Share ──────────────────────────────────────────────────────────────────
+  const handleShare = async () => {
+    const url = window.location.href;
+    // Use native share sheet (works on mobile + some desktop browsers)
+    if (navigator.share) {
+      try { await navigator.share({ title: product.name, text: product.name, url }); return; }
+      catch { /* user cancelled — fall through to menu */ }
+    }
+    setShareMenuOpen(v => !v);
+  };
+
+  const copyLink = () => {
+    navigator.clipboard?.writeText(window.location.href);
+    setShareCopied(true);
+    toast('Link copied!');
+    setTimeout(() => setShareCopied(false), 2500);
+    setShareMenuOpen(false);
+  };
+
   const handleReviewImageChange = (e) => {
     const files = Array.from(e.target.files);
     setReviewImages(prev => {
@@ -434,17 +472,76 @@ export default function ProductDetailPage() {
                 display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', position:'relative' }}>
                 {thumbs[activeThumb] ? (
                   <img src={thumbs[activeThumb]} alt={product.name}
-                    style={{ width:'100%', height:'100%', objectFit:'contain', padding:12 }} />
+                    onClick={() => setLightboxOpen(true)}
+                    title="Click to enlarge"
+                    style={{ width:'100%', height:'100%', objectFit:'contain', padding:12, cursor:'zoom-in' }} />
                 ) : (
                   <span style={{ fontSize:120 }}>🛍️</span>
                 )}
-                {/* Share icon */}
-                <button onClick={() => { navigator.clipboard?.writeText(window.location.href); toast('Link copied!'); }}
-                  style={{ position:'absolute', top:10, right:10, width:34, height:34, borderRadius:'50%',
-                    background:'white', border:'1px solid #ddd', cursor:'pointer', display:'flex',
-                    alignItems:'center', justifyContent:'center' }}>
-                  <Share2 size={15} color="#555" />
-                </button>
+                {/* Share icon + dropdown */}
+                <div style={{ position:'absolute', top:10, right:10 }}>
+                  <button onClick={handleShare}
+                    style={{ width:34, height:34, borderRadius:'50%', background:'white',
+                      border:'1px solid #ddd', cursor:'pointer', display:'flex',
+                      alignItems:'center', justifyContent:'center', position:'relative', zIndex:101 }}>
+                    <Share2 size={15} color="#555" />
+                  </button>
+
+                  {/* Desktop share dropdown */}
+                  {shareMenuOpen && (
+                    <div style={{ position:'absolute', top:40, right:0, background:'white',
+                      border:'1px solid #e0e0e0', borderRadius:12,
+                      boxShadow:'0 8px 32px rgba(0,0,0,.18)', zIndex:200, minWidth:210, overflow:'hidden' }}>
+                      <div style={{ padding:'12px 16px', fontSize:13, fontWeight:700,
+                        color:'#0F1111', borderBottom:'1px solid #f0f0f0' }}>
+                        Share this product
+                      </div>
+                      {[
+                        {
+                          emoji: shareCopied ? '✅' : '🔗',
+                          label: shareCopied ? 'Copied!' : 'Copy Link',
+                          action: copyLink,
+                        },
+                        {
+                          emoji: '💬',
+                          label: 'WhatsApp',
+                          action: () => {
+                            window.open(`https://wa.me/?text=${encodeURIComponent(product.name + '\n' + window.location.href)}`, '_blank');
+                            setShareMenuOpen(false);
+                          },
+                        },
+                        {
+                          emoji: '📘',
+                          label: 'Facebook',
+                          action: () => {
+                            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`, '_blank');
+                            setShareMenuOpen(false);
+                          },
+                        },
+                        {
+                          emoji: '𝕏',
+                          label: 'X (Twitter)',
+                          action: () => {
+                            window.open(`https://twitter.com/intent/tweet?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(product.name)}`, '_blank');
+                            setShareMenuOpen(false);
+                          },
+                        },
+                      ].map((item, i, arr) => (
+                        <button key={i} onClick={item.action}
+                          style={{ width:'100%', padding:'12px 16px', textAlign:'left', background:'none',
+                            border:'none', borderBottom: i < arr.length - 1 ? '1px solid #f8f8f8' : 'none',
+                            cursor:'pointer', fontSize:13, color:'#0F1111',
+                            display:'flex', alignItems:'center', gap:10,
+                            transition:'background .15s' }}
+                          onMouseEnter={e => e.currentTarget.style.background = '#f7f7f7'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                          <span style={{ fontSize:16 }}>{item.emoji}</span>
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1022,6 +1119,142 @@ export default function ProductDetailPage() {
           quantity={appliedCoupon.freebie.quantity || 1}
           onClose={() => setFreebieModal(false)}
         />
+      )}
+
+      {/* ── Share menu backdrop (close on outside click) ── */}
+      {shareMenuOpen && (
+        <div onClick={() => setShareMenuOpen(false)}
+          style={{ position:'fixed', inset:0, zIndex:100 }} />
+      )}
+
+      {/* ── Image Lightbox ── */}
+      {lightboxOpen && (
+        <div
+          onClick={() => { setLightboxOpen(false); setLightboxZoom(1); }}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.93)',
+            zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}>
+
+          {/* Close × */}
+          <button
+            onClick={() => { setLightboxOpen(false); setLightboxZoom(1); }}
+            style={{ position:'absolute', top:16, right:16, width:42, height:42, borderRadius:'50%',
+              background:'rgba(255,255,255,.18)', border:'1px solid rgba(255,255,255,.3)',
+              color:'white', fontSize:24, cursor:'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>
+            ×
+          </button>
+
+          {/* Image counter */}
+          {thumbs.length > 1 && (
+            <div style={{ position:'absolute', top:20, left:'50%', transform:'translateX(-50%)',
+              color:'rgba(255,255,255,.7)', fontSize:13, zIndex:1 }}>
+              {activeThumb + 1} / {thumbs.length}
+            </div>
+          )}
+
+          {/* ← Prev */}
+          {thumbs.length > 1 && (
+            <button
+              onClick={e => { e.stopPropagation(); setActiveThumb(t => Math.max(0, t - 1)); setLightboxZoom(1); }}
+              disabled={activeThumb === 0}
+              style={{ position:'absolute', left:16, top:'50%', transform:'translateY(-50%)',
+                width:48, height:48, borderRadius:'50%', background:'rgba(255,255,255,.15)',
+                border:'1px solid rgba(255,255,255,.3)', color:'white', fontSize:28,
+                cursor: activeThumb > 0 ? 'pointer' : 'default',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                opacity: activeThumb === 0 ? .25 : 1, zIndex:1 }}>
+              ‹
+            </button>
+          )}
+
+          {/* → Next */}
+          {thumbs.length > 1 && (
+            <button
+              onClick={e => { e.stopPropagation(); setActiveThumb(t => Math.min(thumbs.length - 1, t + 1)); setLightboxZoom(1); }}
+              disabled={activeThumb === thumbs.length - 1}
+              style={{ position:'absolute', right:16, top:'50%', transform:'translateY(-50%)',
+                width:48, height:48, borderRadius:'50%', background:'rgba(255,255,255,.15)',
+                border:'1px solid rgba(255,255,255,.3)', color:'white', fontSize:28,
+                cursor: activeThumb < thumbs.length - 1 ? 'pointer' : 'default',
+                display:'flex', alignItems:'center', justifyContent:'center',
+                opacity: activeThumb === thumbs.length - 1 ? .25 : 1, zIndex:1 }}>
+              ›
+            </button>
+          )}
+
+          {/* Main zoomable image */}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ display:'flex', alignItems:'center', justifyContent:'center',
+              maxWidth:'88vw', maxHeight:'80vh', overflow: lightboxZoom > 1 ? 'auto' : 'visible' }}>
+            <img
+              src={thumbs[activeThumb]}
+              alt={product.name}
+              onClick={() => setLightboxZoom(z => z >= 2 ? 1 : z + 0.75)}
+              style={{
+                maxWidth:  lightboxZoom === 1 ? '88vw'  : 'none',
+                maxHeight: lightboxZoom === 1 ? '78vh'  : 'none',
+                width:     lightboxZoom > 1   ? `${lightboxZoom * 65}vw` : 'auto',
+                objectFit: 'contain',
+                cursor:    lightboxZoom >= 2  ? 'zoom-out' : 'zoom-in',
+                transition:'transform .25s, width .25s',
+                userSelect:'none',
+                borderRadius: 6,
+              }}
+            />
+          </div>
+
+          {/* Zoom controls */}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ position:'absolute', bottom: thumbs.length > 1 ? 90 : 24,
+              left:'50%', transform:'translateX(-50%)',
+              display:'flex', gap:6, zIndex:1, alignItems:'center' }}>
+            <button
+              onClick={() => setLightboxZoom(z => Math.max(1, +(z - 0.5).toFixed(1)))}
+              style={{ width:36, height:36, borderRadius:6, background:'rgba(255,255,255,.15)',
+                border:'1px solid rgba(255,255,255,.3)', color:'white', fontSize:20,
+                cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              −
+            </button>
+            <span style={{ color:'white', fontSize:13, minWidth:46, textAlign:'center',
+              background:'rgba(255,255,255,.1)', padding:'4px 8px', borderRadius:6 }}>
+              {Math.round(lightboxZoom * 100)}%
+            </span>
+            <button
+              onClick={() => setLightboxZoom(z => Math.min(4, +(z + 0.5).toFixed(1)))}
+              style={{ width:36, height:36, borderRadius:6, background:'rgba(255,255,255,.15)',
+                border:'1px solid rgba(255,255,255,.3)', color:'white', fontSize:20,
+                cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+              +
+            </button>
+            <button
+              onClick={() => setLightboxZoom(1)}
+              style={{ padding:'4px 12px', height:36, borderRadius:6, background:'rgba(255,255,255,.1)',
+                border:'1px solid rgba(255,255,255,.25)', color:'rgba(255,255,255,.75)',
+                fontSize:12, cursor:'pointer' }}>
+              Reset
+            </button>
+          </div>
+
+          {/* Thumbnail strip */}
+          {thumbs.length > 1 && (
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ position:'absolute', bottom:16, left:'50%', transform:'translateX(-50%)',
+                display:'flex', gap:6, zIndex:1 }}>
+              {thumbs.map((img, i) => (
+                <div key={i}
+                  onClick={() => { setActiveThumb(i); setLightboxZoom(1); }}
+                  style={{ width:46, height:46, borderRadius:5, overflow:'hidden', cursor:'pointer',
+                    border:`2px solid ${activeThumb === i ? '#FF5A1F' : 'rgba(255,255,255,.35)'}`,
+                    opacity: activeThumb === i ? 1 : .55, transition:'opacity .2s, border-color .2s' }}>
+                  <img src={img} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
