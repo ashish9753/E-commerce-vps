@@ -355,23 +355,25 @@ function HeroMyntraStyle({ banners = [] }) {
             fontStyle: current.fontStyle,
           }}
         >
-          {current.overlay && <span className="myn-hero-tag">{current.overlay}</span>}
-          {current.title && (
-            <h1 style={{
-              fontFamily: `'${current.fontFamily}', sans-serif`,
-              fontSize: `clamp(24px, ${current.fontSize * 0.55}px, ${current.fontSize}px)`,
-              fontWeight: current.fontWeight,
-              fontStyle: current.fontStyle,
-            }}>{current.title}</h1>
-          )}
-          {current.subtitle && <p>{current.subtitle}</p>}
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); navigate(current.path); }}
-            className="myn-hero-cta"
-          >
-            {current.cta} <ChevronRight size={18} />
-          </button>
+          <div className="myn-hero-overlay-inner">
+            {current.overlay && <span className="myn-hero-tag">{current.overlay}</span>}
+            {current.title && (
+              <h1 style={{
+                fontFamily: `'${current.fontFamily}', sans-serif`,
+                fontSize: `clamp(24px, ${current.fontSize * 0.55}px, ${current.fontSize}px)`,
+                fontWeight: current.fontWeight,
+                fontStyle: current.fontStyle,
+              }}>{current.title}</h1>
+            )}
+            {current.subtitle && <p>{current.subtitle}</p>}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); navigate(current.path); }}
+              className="myn-hero-cta"
+            >
+              {current.cta} <ChevronRight size={18} />
+            </button>
+          </div>
         </div>
       </div>
       <button className="myn-hero-arrow right" onClick={() => move(1)} aria-label="Next banner">
@@ -730,9 +732,19 @@ export default function HomePage() {
           display: flex;
           flex-direction: column;
           justify-content: center;
-          gap: 14px;
           padding: 5vw 6vw;
           text-shadow: 0 2px 12px rgba(0,0,0,.55);
+        }
+        /* Inner wrapper groups the tag/title/subtitle/CTA so they can be given
+           a contained, readable backdrop on small screens (where overlay text
+           would otherwise merge into artwork that already contains text). */
+        .myn-hero-overlay-inner {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+          align-items: inherit;
+          text-align: inherit;
+          max-width: 100%;
         }
         .myn-hero-overlay h1 {
           margin: 0;
@@ -789,7 +801,8 @@ export default function HomePage() {
            promo poster. Title gets a wider cap so a phrase like
            "Smartphones & audio essentials" doesn't break mid-line. */
         .myn-hero-clean .myn-hero-bgmedia::after { display: none; }
-        .myn-hero-clean .myn-hero-overlay        { text-shadow: none; gap: 10px; }
+        .myn-hero-clean .myn-hero-overlay        { text-shadow: none; }
+        .myn-hero-clean .myn-hero-overlay-inner  { gap: 10px; }
         /* Cap the title to the left "safe zone" of the photo so it wraps
            naturally instead of running into the product imagery on the right. */
         .myn-hero-clean .myn-hero-overlay h1     { max-width: min(440px, 42%); letter-spacing: -0.01em; font-size: clamp(24px, 3.2vw, 44px); line-height: 1.08; }
@@ -1344,26 +1357,41 @@ export default function HomePage() {
              inline font-size from the admin's banner setting, so we need
              !important to win against the inline style. */
           .myn-hero-banner .myn-hero-overlay {
-            padding: 16px 18px;
-            gap: 6px;
+            padding: 14px 16px;
+          }
+          .myn-hero-banner .myn-hero-overlay-inner {
+            gap: 7px;
+            max-width: min(86%, 340px);
+          }
+          /* Admin promo banners often sit on artwork that already contains text,
+             so on phones we give the overlay copy a contained, blurred card.
+             This keeps it readable and stops it merging into the image. Clean
+             fallback banners (dark text on bright product photos) are excluded. */
+          .myn-hero-banner:not(.myn-hero-clean) .myn-hero-overlay-inner {
+            background: rgba(10,12,20,.46);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border-radius: 12px;
+            padding: 11px 13px;
+            box-shadow: 0 6px 20px rgba(0,0,0,.30);
           }
           .myn-hero-banner .myn-hero-overlay h1 {
-            font-size: clamp(14px, 3.6vw, 18px) !important;
-            line-height: 1.1 !important;
-            max-width: 60%;
+            font-size: clamp(15px, 4.4vw, 22px) !important;
+            line-height: 1.12 !important;
+            max-width: 100%;
           }
           .myn-hero-banner .myn-hero-overlay p {
-            font-size: 11px;
-            max-width: 60%;
+            font-size: 11.5px;
+            max-width: 100%;
           }
           .myn-hero-banner .myn-hero-tag {
             font-size: 10px;
             padding: 3px 9px;
           }
           .myn-hero-banner .myn-hero-cta {
-            height: 30px;
-            padding: 0 12px;
-            font-size: 11px;
+            height: 32px;
+            padding: 0 14px;
+            font-size: 11.5px;
             gap: 4px;
           }
           .myn-hero-banner .myn-hero-cta svg {

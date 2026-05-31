@@ -94,7 +94,14 @@ export default function ProductListPage() {
       }
 
       setProducts(normalized);
-      setTotal(data.data?.total || data.data?.totalItems || normalized.length);
+      // Total count lives under pagination.total (buildPaginatedResponse).
+      // Falling back to the page length here is what hid extra pages before.
+      setTotal(
+        data.data?.pagination?.total ??
+        data.data?.total ??
+        data.data?.totalItems ??
+        normalized.length
+      );
     } catch {
       setProducts([]);
     } finally {
@@ -146,7 +153,10 @@ export default function ProductListPage() {
             </select>
           </div>
 
-          {loading ? (
+          {/* Skeletons only on the very first load. For later filter/sort
+              changes we keep the current grid visible (just dimmed) so applying
+              a filter feels instant instead of a hard page reload. */}
+          {loading && products.length === 0 ? (
             <div className="grid grid-cols-3 gap-5 max-md:grid-cols-2">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="animate-pulse">
@@ -168,7 +178,10 @@ export default function ProductListPage() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-5 max-md:grid-cols-2">
+              <div
+                className="grid grid-cols-3 gap-5 max-md:grid-cols-2 transition-opacity duration-200"
+                style={{ opacity: loading ? 0.5 : 1, pointerEvents: loading ? 'none' : 'auto' }}
+              >
                 {products.map(p => <ProductCard key={p._id} product={p} />)}
               </div>
               {total > limit && (

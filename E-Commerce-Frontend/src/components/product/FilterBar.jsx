@@ -16,7 +16,12 @@ export default function FilterBar({ filters, onChange }) {
   const BRANDS = apiBrands.length > 0 ? apiBrands.map(b => b.name) : FALLBACK_BRANDS;
   const toggle = (key, val) => {
     const cur = filters[key] || [];
-    const next = cur.includes(val) ? cur.filter(v => v !== val) : [...cur, val];
+    // Price is single-select (radio-like): the backend supports only one
+    // min/max span, so picking a range replaces the previous one. Clicking the
+    // active range clears it. Brand/rating stay multi-select.
+    const next = key === 'prices'
+      ? (cur.includes(val) ? [] : [val])
+      : (cur.includes(val) ? cur.filter(v => v !== val) : [...cur, val]);
     onChange({ ...filters, [key]: next });
   };
 
@@ -41,7 +46,7 @@ export default function FilterBar({ filters, onChange }) {
   );
 
   return (
-    <div className="sticky top-32.5 self-start">
+    <div className="sticky top-32.5 self-start max-h-[calc(100vh-9rem)] overflow-y-auto pr-1 -mr-1">
       <div>
         <h4 className="text-base font-bold mb-2 flex justify-between items-center">
           Filters {activeCount > 0 && <span className="tag tag-accent">{activeCount}</span>}
