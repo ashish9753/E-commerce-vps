@@ -280,7 +280,15 @@ export const getMyProducts = async (req, res, next) => {
     }
 
     const [products, total] = await Promise.all([
-      Product.find(filter).skip(skip).limit(limit).sort({ createdAt: -1 }),
+      // Populate the category (with its parent) so the edit form can pre-select
+      // both the parent category and the sub-category. Without `parent`, a
+      // product saved under a sub-category can't resolve its parent and the
+      // Category/Sub-category dropdowns render empty on reopen.
+      Product.find(filter)
+        .populate("category", "name parent")
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 }),
       Product.countDocuments(filter),
     ]);
 
