@@ -9,16 +9,26 @@ export default function Footer() {
 
   return (
     <footer className="text-white mt-20" style={{ background: '#131921' }}>
+      {/* Back to top — Amazon-style bar, shown on phones */}
+      <button
+        type="button"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        className="hidden max-md:flex w-full items-center justify-center gap-2 py-3.5 text-xs font-semibold tracking-wide text-white/80 bg-white/5 hover:bg-white/10 transition-colors border-b border-white/10"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6" /></svg>
+        Back to top
+      </button>
+
       <div className="wrap">
-        <div className="grid grid-cols-[1.6fr_.8fr_.8fr_.8fr_1fr] gap-12 py-18 pb-12 max-lg:grid-cols-[1fr_1fr] max-md:grid-cols-1">
-          <div>
-            <div className="flex items-center">
+        <div className="grid grid-cols-[1.6fr_.8fr_.8fr_.8fr_1fr] gap-12 py-18 pb-12 max-lg:grid-cols-[1fr_1fr] max-md:grid-cols-2 max-md:gap-x-6 max-md:gap-y-9 max-md:py-10">
+          <div className="max-md:col-span-2 max-md:flex max-md:flex-col max-md:items-center max-md:text-center">
+            <div className="flex items-center max-md:justify-center">
               <img src="/LOGO.png" alt="TradeEngine" style={{ height: 48, width: 'auto', display: 'block' }} />
             </div>
-            <p className="text-white/55 text-sm mt-4.5 max-w-70 leading-relaxed">
+            <p className="text-white/55 text-sm mt-4.5 max-w-70 leading-relaxed max-md:max-w-sm">
               Nepal's most trusted destination for electronics and home appliances. Quality products, best prices, doorstep delivery.
             </p>
-            <div className="flex gap-2 mt-6">
+            <div className="flex gap-2 mt-6 max-md:justify-center">
               {[
                 { label: 'Facebook', href: 'https://www.facebook.com/tradengin',
                   icon: <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg> },
@@ -76,9 +86,9 @@ export default function Footer() {
           ))}
         </div>
 
-        <div className="border-t border-white/8 py-6 text-xs text-white/40 flex justify-between items-center">
+        <div className="border-t border-white/8 py-6 text-xs text-white/40 flex justify-between items-center max-md:flex-col max-md:items-center max-md:text-center max-md:gap-4">
           <span>© {year} Trade Engine Pvt. Ltd. All rights reserved.</span>
-          <div className="flex gap-2.5 items-center">
+          <div className="flex gap-2.5 items-center max-md:justify-center max-md:flex-wrap">
             {['FONEPAY','COD','EMI','TRANSFER'].map(p => (
               <span key={p} className="px-2.5 py-1 border border-white/12 rounded-md text-[10px] font-bold tracking-[0.06em]">{p}</span>
             ))}
