@@ -32,10 +32,14 @@ export default function ProductListPage() {
   // Seed the brand filter from ?brand=… so clicking a brand on /brands
   // pre-ticks the matching checkbox in the FilterBar.
   const urlBrand = searchParams.get('brand') || '';
+  // Seed the category filter from ?category=… so arriving from a nav link or
+  // breadcrumb pre-ticks the matching checkbox (single-select, see FilterBar).
+  const urlCategory = searchParams.get('category') || '';
   const [filters, setFilters] = useState({
     brands: urlBrand ? [urlBrand] : [],
     prices: [],
     ratings: [],
+    categories: urlCategory ? [urlCategory] : [],
   });
   // Sort defaults to whatever the URL says (so /products?sort=newest works
   // from the navbar). Falls back to 'popular' when no sort is given.
@@ -54,13 +58,24 @@ export default function ProductListPage() {
       return same ? f : { ...f, brands: next };
     });
   }, [urlBrand]);
+  // Same re-sync for ?category=… (e.g. user clicks a different category in the
+  // navbar while already on the products page).
+  useEffect(() => {
+    setFilters((f) => {
+      const next = urlCategory ? [urlCategory] : [];
+      const same = f.categories.length === next.length && f.categories.every((c, i) => c === next[i]);
+      return same ? f : { ...f, categories: next };
+    });
+  }, [urlCategory]);
   const [showFilter, setShowFilter] = useState(false);
   const [products, setProducts] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
 
-  const category = searchParams.get('category') || '';
+  // Category is driven by the filter state (seeded from the URL above), so the
+  // sidebar checkbox and any ?category=… link stay in lockstep.
+  const category = filters.categories[0] || '';
   const query = searchParams.get('q') || '';
   const onSale = searchParams.get('onSale') === 'true';
   const limit = 18;
@@ -156,8 +171,8 @@ export default function ProductListPage() {
             <div className="flex items-center gap-3">
               <button className="md:hidden btn btn-ghost btn-sm" onClick={() => setShowFilter(v => !v)}>
                 {showFilter ? '✕ Hide Filters' : '⊞ Filters'}
-                {!showFilter && (filters.brands.length + filters.prices.length + filters.ratings.length) > 0 &&
-                  <span className="tag tag-accent ml-1">{filters.brands.length + filters.prices.length + filters.ratings.length}</span>}
+                {!showFilter && (filters.brands.length + filters.prices.length + filters.ratings.length + filters.categories.length) > 0 &&
+                  <span className="tag tag-accent ml-1">{filters.brands.length + filters.prices.length + filters.ratings.length + filters.categories.length}</span>}
               </button>
               <div className="text-[13px] text-mute">
                 Showing <b className="text-ink">{products.length}</b>{total > products.length ? ` of ${total}` : ''} products
@@ -188,7 +203,7 @@ export default function ProductListPage() {
               <div className="text-[80px]">🔍</div>
               <h3 className="text-2xl font-bold mt-4 mb-2">No products found</h3>
               <p className="text-mute mb-6">Try adjusting your search or filters.</p>
-              <button className="btn btn-primary" onClick={() => { setFilters({ brands: [], prices: [], ratings: [] }); navigate('/products'); }}>
+              <button className="btn btn-primary" onClick={() => { setFilters({ brands: [], prices: [], ratings: [], categories: [] }); navigate('/products'); }}>
                 Clear filters
               </button>
             </div>

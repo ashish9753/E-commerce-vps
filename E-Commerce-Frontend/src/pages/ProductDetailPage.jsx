@@ -561,9 +561,16 @@ export default function ProductDetailPage() {
             )}
 
             {/* Title */}
-            <h1 style={{ fontSize:22, fontWeight:400, lineHeight:1.35, color:'#0F1111', margin:'0 0 10px' }}>
+            <h1 style={{ fontSize:22, fontWeight:400, lineHeight:1.35, color:'#0F1111', margin:'0 0 6px' }}>
               {product.name}
             </h1>
+
+            {/* Model / SKU */}
+            {product.sku && (
+              <div style={{ fontSize:13, color:'#565959', marginBottom:10 }}>
+                Model No.: <span style={{ color:'#0F1111', fontWeight:600 }}>{product.sku}</span>
+              </div>
+            )}
 
             {/* Rating row */}
             {(product.rating > 0 || reviews.length > 0) && (

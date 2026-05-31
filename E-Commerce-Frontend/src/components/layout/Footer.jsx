@@ -20,11 +20,14 @@ export default function Footer() {
             </p>
             <div className="flex gap-2 mt-6">
               {[
-                <svg key="fb" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>,
-                <svg key="ig" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>,
-                <svg key="yt" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.97C18.88 4 12 4 12 4s-6.88 0-8.59.45A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.97C5.12 20 12 20 12 20s6.88 0 8.59-.45a2.78 2.78 0 0 0 1.95-1.97A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z"/><polygon fill="#fff" points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"/></svg>,
-              ].map((icon, i) => (
-                <a key={i} href="#" className="w-9 h-9 rounded-full bg-white/6 flex items-center justify-center transition-colors hover:bg-accent">{icon}</a>
+                { label: 'Facebook', href: 'https://www.facebook.com/tradengin',
+                  icon: <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg> },
+                { label: 'Instagram', href: 'https://www.instagram.com/trade_ngine',
+                  icon: <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg> },
+                { label: 'TikTok', href: 'https://www.tiktok.com/@tradengine',
+                  icon: <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M21 8.5a6.5 6.5 0 0 1-4.2-1.54v6.79a5.75 5.75 0 1 1-5.75-5.75c.2 0 .4.01.6.03v2.92a2.86 2.86 0 1 0 2.01 2.73V2h2.83a3.67 3.67 0 0 0 .06.67A3.68 3.68 0 0 0 18 5.42 3.65 3.65 0 0 0 21 5.6z"/></svg> },
+              ].map(s => (
+                <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" aria-label={s.label} className="w-9 h-9 rounded-full bg-white/6 flex items-center justify-center transition-colors hover:bg-accent">{s.icon}</a>
               ))}
             </div>
           </div>

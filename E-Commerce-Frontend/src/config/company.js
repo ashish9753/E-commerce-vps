@@ -9,7 +9,7 @@ export const COMPANY = {
   office:  'Dhalko, Kathmandu',
 
   // Phone numbers — split by purpose so different screens can show the right one.
-  salesPhone:   '9700054941',
+  salesPhone:   '9801904704',
   supportPhone: '9801904706',
 
   email:   'Info.tradengine@gmail.com',

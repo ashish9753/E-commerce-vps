@@ -336,49 +336,64 @@ function HeroMyntraStyle({ banners = [] }) {
 
   return (
     <section className={`myn-hero myn-hero-banner${current.clean ? ' myn-hero-clean' : ''}`}>
-      <button className="myn-hero-arrow left" onClick={() => move(-1)} aria-label="Previous banner">
-        <ChevronLeft size={32} strokeWidth={2.5} />
-      </button>
+      {/* Arrows live INSIDE the image wrapper so they always vertically center
+          on the image — on phones the text band sits below the image, and the
+          arrows must track the image, not the whole stacked banner. */}
       <div
         className="myn-hero-bgmedia"
         style={{ cursor: 'pointer' }}
         onClick={() => navigate(current.path)}
       >
         <img src={current.image} alt={current.title} />
-        <div
-          className="myn-hero-overlay"
-          style={{
-            color: current.textColor,
-            alignItems: align,
-            textAlign: current.textPosition,
-            fontFamily: `'${current.fontFamily}', sans-serif`,
-            fontStyle: current.fontStyle,
-          }}
+        <button
+          className="myn-hero-arrow left"
+          onClick={(e) => { e.stopPropagation(); move(-1); }}
+          aria-label="Previous banner"
         >
-          <div className="myn-hero-overlay-inner">
-            {current.overlay && <span className="myn-hero-tag">{current.overlay}</span>}
-            {current.title && (
-              <h1 style={{
-                fontFamily: `'${current.fontFamily}', sans-serif`,
-                fontSize: `clamp(24px, ${current.fontSize * 0.55}px, ${current.fontSize}px)`,
-                fontWeight: current.fontWeight,
-                fontStyle: current.fontStyle,
-              }}>{current.title}</h1>
-            )}
-            {current.subtitle && <p>{current.subtitle}</p>}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); navigate(current.path); }}
-              className="myn-hero-cta"
-            >
-              {current.cta} <ChevronRight size={18} />
-            </button>
-          </div>
+          <ChevronLeft size={32} strokeWidth={2.5} />
+        </button>
+        <button
+          className="myn-hero-arrow right"
+          onClick={(e) => { e.stopPropagation(); move(1); }}
+          aria-label="Next banner"
+        >
+          <ChevronRight size={32} strokeWidth={2.5} />
+        </button>
+      </div>
+      {/* Overlay copy: a transparent layer over the image on desktop, and a
+          solid band below the image on phones (see the mobile CSS). */}
+      <div
+        className="myn-hero-overlay"
+        style={{
+          color: current.textColor,
+          alignItems: align,
+          textAlign: current.textPosition,
+          fontFamily: `'${current.fontFamily}', sans-serif`,
+          fontStyle: current.fontStyle,
+          cursor: 'pointer',
+        }}
+        onClick={() => navigate(current.path)}
+      >
+        <div className="myn-hero-overlay-inner">
+          {current.overlay && <span className="myn-hero-tag">{current.overlay}</span>}
+          {current.title && (
+            <h1 style={{
+              fontFamily: `'${current.fontFamily}', sans-serif`,
+              fontSize: `clamp(24px, ${current.fontSize * 0.55}px, ${current.fontSize}px)`,
+              fontWeight: current.fontWeight,
+              fontStyle: current.fontStyle,
+            }}>{current.title}</h1>
+          )}
+          {current.subtitle && <p>{current.subtitle}</p>}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); navigate(current.path); }}
+            className="myn-hero-cta"
+          >
+            {current.cta} <ChevronRight size={18} />
+          </button>
         </div>
       </div>
-      <button className="myn-hero-arrow right" onClick={() => move(1)} aria-label="Next banner">
-        <ChevronRight size={32} strokeWidth={2.5} />
-      </button>
       <div className="myn-dots" aria-label="Banner slides">
         {slides.map((slide, slideIndex) => (
           <button
@@ -695,10 +710,19 @@ export default function HomePage() {
           contain: layout paint style;
         }
 
-        /* Banner-style hero — full-width image with text overlay (Amazon-style) */
+        /* Banner-style hero — full-width image with text overlay (Amazon-style).
+           Admin banners are authored at ~1200×400 (3:1), so we size the hero to
+           that same 3:1 ratio rather than a fixed height. This way object-fit:
+           cover has nothing to crop and the artwork stays fully visible while
+           scaling proportionally on big screens. max-height keeps it from
+           growing absurdly tall on ultra-wide monitors (a 1920px-wide hero is
+           exactly 640px tall at 3:1, so 1080p/1440p screens show the full art). */
         .myn-hero-banner {
           display: block;
-          height: clamp(330px, 38vw, 510px);
+          height: auto;
+          aspect-ratio: 3 / 1;
+          max-height: 640px;
+          min-height: 300px;
         }
 
         .myn-hero-bgmedia {
@@ -1346,34 +1370,84 @@ export default function HomePage() {
             height: auto;
           }
 
-          /* Banner-style hero uses display:block + position:absolute children,
-             so it has no in-flow content to give it height. Give it an
-             explicit mobile height so the banner doesn't collapse to 0px. */
+          /* On phones we show the WHOLE uploaded banner — no cropping. Instead
+             of a fixed height + object-fit: cover (which zooms/crops the art),
+             we let the image flow in at its natural size so the banner box
+             takes the image's exact height. Works for any aspect ratio the
+             admin uploads. */
           .myn-hero-banner {
-            height: clamp(220px, 58vw, 360px);
+            height: auto;
+            aspect-ratio: auto;
+            min-height: 0;
+            max-height: none;
+          }
+          /* The image normally sits absolutely (inset:0). Put it back in flow on
+             phones so it defines the banner's height — full image, no crop. */
+          .myn-hero-banner .myn-hero-bgmedia {
+            position: relative;
+          }
+          .myn-hero-banner .myn-hero-bgmedia img {
+            position: relative;
+            width: 100%;
+            height: auto;
+            object-fit: contain;
+          }
+          /* Text now lives in a band BELOW the image, not over it, so the
+             over-image fade is no longer needed. */
+          .myn-hero-banner .myn-hero-bgmedia::after {
+            display: none;
           }
 
-          /* Cap the banner title/subtitle/CTA on phones. The h1 carries an
-             inline font-size from the admin's banner setting, so we need
-             !important to win against the inline style. */
+          /* Move the offer text + Shop Now button OUT of the artwork and into a
+             solid band pinned directly beneath the full image (the "down side"
+             of the banner). position:static makes the overlay flow below the
+             in-flow image instead of covering it — so the image is never hidden
+             and the copy reads as a clean promo bar. */
           .myn-hero-banner .myn-hero-overlay {
-            padding: 14px 16px;
+            position: static;
+            inset: auto;
+            justify-content: flex-start;
+            padding: 13px 16px 15px;
+            background: #131921;
+            color: #fff !important;
+            text-shadow: none;
           }
-          .myn-hero-banner .myn-hero-overlay-inner {
-            gap: 7px;
-            max-width: min(86%, 340px);
-          }
-          /* Admin promo banners often sit on artwork that already contains text,
-             so on phones we give the overlay copy a contained, blurred card.
-             This keeps it readable and stops it merging into the image. Clean
-             fallback banners (dark text on bright product photos) are excluded. */
+          /* Lay the band out in two columns — offer copy on the left, the Shop
+             Now button on the right (vertically centered) — so the empty
+             right-hand space is used instead of stacking everything on the left.
+             The button spans all text rows in the right column via grid areas.
+             Higher-specificity selector so it also wins over the :not(.clean)
+             rule that styled the floating card. */
+          .myn-hero-banner .myn-hero-overlay .myn-hero-overlay-inner,
           .myn-hero-banner:not(.myn-hero-clean) .myn-hero-overlay-inner {
-            background: rgba(10,12,20,.46);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-            border-radius: 12px;
-            padding: 11px 13px;
-            box-shadow: 0 6px 20px rgba(0,0,0,.30);
+            display: grid;
+            grid-template-columns: 1fr auto;
+            grid-template-areas:
+              "tag   cta"
+              "title cta"
+              "sub   cta";
+            align-items: center;
+            justify-items: start;
+            column-gap: 14px;
+            row-gap: 3px;
+            width: 100%;
+            max-width: 100%;
+            background: none;
+            border-radius: 0;
+            box-shadow: none;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            padding: 0;
+          }
+          .myn-hero-banner .myn-hero-tag       { grid-area: tag; }
+          .myn-hero-banner .myn-hero-overlay h1 { grid-area: title; }
+          .myn-hero-banner .myn-hero-overlay p  { grid-area: sub; }
+          .myn-hero-banner .myn-hero-cta {
+            grid-area: cta;
+            align-self: center;
+            justify-self: end;
+            margin: 0;
+            white-space: nowrap;
           }
           .myn-hero-banner .myn-hero-overlay h1 {
             font-size: clamp(15px, 4.4vw, 22px) !important;
@@ -1416,16 +1490,26 @@ export default function HomePage() {
             font-size: clamp(18px, 4.5vw, 26px);
           }
 
-          /* Vertically center the arrows over the image row (not the whole
-             stacked hero). Without this they'd float over the text below. */
+          /* Arrows now live inside the image wrapper, so the base top:50%
+             centers them on the image itself — no fixed pixel offset needed,
+             and they stay centered whatever the image's height. */
           .myn-hero-arrow {
-            top: clamp(95px, 26vw, 150px);
+            top: 50%;
           }
 
-          /* Park the dots at the bottom of the image, just above the copy. */
+          /* Dots get their own strip BELOW the text band — never over the
+             image. The dark background matches the band so the copy, button and
+             dots read as one continuous footer. */
           .myn-dots {
+            position: static;
+            top: auto;
             bottom: auto;
-            top: calc(clamp(190px, 52vw, 300px) - 24px);
+            left: auto;
+            transform: none;
+            justify-content: center;
+            width: 100%;
+            padding: 9px 0 11px;
+            background: #131921;
           }
 
           .myn-section-title {

@@ -19,6 +19,7 @@ export function normalizeProduct(p) {
     name: p.title || p.name || '',
     title: p.title || p.name || '',
     brand: p.brand || '',
+    sku: p.sku || '',
     category: categoryName,
     categoryObj: typeof p.category === 'object' ? p.category : null,
     price,
