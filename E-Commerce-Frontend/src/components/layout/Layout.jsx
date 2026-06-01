@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Header from './Header';
 import Footer from './Footer';
 import MobileBottomNav from './MobileBottomNav';
+import SocialShowcase from '../home/SocialShowcase';
 import { useCatalog } from '../../context/CatalogContext';
 import { couponsApi } from '../../api/coupons';
 import { cached } from '../../utils/apiCache';
@@ -57,6 +58,7 @@ export default function Layout({ children }) {
     <>
       <Header />
       <main>{children}</main>
+      <SocialShowcase />
       <Footer />
       <MobileBottomNav />
     </>

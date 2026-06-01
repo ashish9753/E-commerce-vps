@@ -8,6 +8,10 @@ const categorySchema = new mongoose.Schema(
     description: String,
     parent: { type: mongoose.Schema.Types.ObjectId, ref: "Category", default: null },
     isActive: { type: Boolean, default: true },
+    // Manual home-page ordering. -1 = no priority (sorted after pinned
+    // categories, then alphabetically). A non-negative number pins the slot and
+    // must be unique across categories.
+    priority: { type: Number, default: -1 },
   },
   { timestamps: true }
 );

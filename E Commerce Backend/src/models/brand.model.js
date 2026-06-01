@@ -6,6 +6,10 @@ const brandSchema = new mongoose.Schema(
     slug:     { type: String, unique: true },
     logo:     String,
     isActive: { type: Boolean, default: true },
+    // Manual home-page ordering. -1 = no priority (sorted after pinned brands,
+    // then alphabetically). A non-negative number pins the slot and must be
+    // unique across brands so two never claim the same position.
+    priority: { type: Number, default: -1 },
   },
   { timestamps: true }
 );

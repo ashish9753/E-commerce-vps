@@ -48,6 +48,36 @@ function Select({ label, children, ...props }) {
   );
 }
 
+// Manual home-page ordering. Value is a string: '' = no priority (sent as -1).
+// Staff can either type a number or pick one from the dropdown — both edit the
+// same value, as requested.
+function PriorityField({ label, value, onChange, max = 12 }) {
+  const opts = Array.from({ length: max }, (_, i) => i + 1);
+  const selValue = opts.includes(Number(value)) && value !== '' ? String(value) : '';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {label && <label style={{ fontSize: 12, fontWeight: 600, color: C.mute }}>{label}</label>}
+      <div style={{ display: 'flex', gap: 6 }}>
+        <input type="number" min="-1" value={value} onChange={e => onChange(e.target.value)} placeholder="—"
+          title="1 = shown first on the home page. Leave empty for no priority."
+          style={{ height: 38, width: 64, padding: '0 10px', border: `1px solid ${C.border}`, borderRadius: 6,
+            fontSize: 13, outline: 'none', background: C.bg, color: C.text, boxSizing: 'border-box' }} />
+        <select value={selValue} onChange={e => onChange(e.target.value)}
+          style={{ height: 38, padding: '0 8px', border: `1px solid ${C.border}`, borderRadius: 6,
+            fontSize: 13, outline: 'none', background: C.bg, color: C.text }}>
+          <option value="">None</option>
+          {opts.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+// Read a model's stored priority into the form-draft string ('' when unset).
+const priorityToDraft = (p) => (typeof p === 'number' && p >= 0 ? String(p) : '');
+// Convert the draft string into the API payload value (-1 clears it).
+const draftToPriority = (v) => (v === '' || v == null ? -1 : Number(v));
+
 function Btn({ children, variant = 'primary', ...props }) {
   const styles = {
     primary: { background: C.accent,    color: 'white',  border: 'none' },
@@ -108,12 +138,13 @@ function ErrorBar({ msg }) {
 /* ════════════════════ BRANDS ════════════════════ */
 function BrandsSection({ onMutate }) {
   const [brands, setBrands] = useState([]);
-  const [draft, setDraft, clearDraft] = useFormDraft('catalog-brand', { name: '', logo: '' });
+  const [draft, setDraft, clearDraft] = useFormDraft('catalog-brand', { name: '', logo: '', priority: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState(null);
-  const [editDraft, setEditDraft] = useState({ name: '', logo: '' });
+  const [editDraft, setEditDraft] = useState({ name: '', logo: '', priority: '' });
   const [editSaving, setEditSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const load = () => brandsApi.getAllAdmin()
     .then(r => setBrands(r.data?.data?.brands || []))
@@ -131,7 +162,7 @@ function BrandsSection({ onMutate }) {
     if (!draft.name.trim()) return;
     setSaving(true); setError('');
     try {
-      await brandsApi.create({ name: draft.name.trim(), logo: draft.logo.trim() || undefined });
+      await brandsApi.create({ name: draft.name.trim(), logo: draft.logo.trim() || undefined, priority: draftToPriority(draft.priority) });
       clearDraft(); load(); onMutate?.();
     } catch (err) { setError(err.response?.data?.message || err.message || 'Failed to create brand'); }
     finally { setSaving(false); }
@@ -143,13 +174,20 @@ function BrandsSection({ onMutate }) {
     catch (err) { setError(err.response?.data?.message || 'Failed to delete brand'); }
   };
 
-  const startEdit = (b) => { setEditingId(b._id); setEditDraft({ name: b.name, logo: b.logo || '' }); };
+  const resetPriorities = async () => {
+    setResetting(true); setError('');
+    try { await brandsApi.resetPriorities(); load(); onMutate?.(); }
+    catch (err) { setError(err.response?.data?.message || 'Failed to reset priorities'); }
+    finally { setResetting(false); }
+  };
+
+  const startEdit = (b) => { setEditingId(b._id); setEditDraft({ name: b.name, logo: b.logo || '', priority: priorityToDraft(b.priority) }); };
   const cancelEdit = () => setEditingId(null);
   const saveEdit = async (id) => {
     if (!editDraft.name.trim()) return;
     setEditSaving(true); setError('');
     try {
-      await brandsApi.update(id, { name: editDraft.name.trim(), logo: editDraft.logo.trim() || undefined });
+      await brandsApi.update(id, { name: editDraft.name.trim(), logo: editDraft.logo.trim() || undefined, priority: draftToPriority(editDraft.priority) });
       setEditingId(null); load(); onMutate?.();
     } catch (err) { setError(err.response?.data?.message || 'Failed to update brand'); }
     finally { setEditSaving(false); }
@@ -163,6 +201,7 @@ function BrandsSection({ onMutate }) {
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
             <div style={{ flex: 1 }}><Input label="Brand Name" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder="e.g. Samsung" required /></div>
+            <PriorityField label="Priority (home order)" value={draft.priority} onChange={v => setDraft(d => ({ ...d, priority: v }))} max={Math.max(brands.length, 12)} />
             <Btn type="submit" disabled={saving}>{saving ? 'Saving…' : '+ Add Brand'}</Btn>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -180,11 +219,17 @@ function BrandsSection({ onMutate }) {
       </Card>
 
       <Card>
-        <SectionTitle>All Brands</SectionTitle>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <SectionTitle>All Brands</SectionTitle>
+          <Btn variant="ghost" onClick={resetPriorities} disabled={resetting}
+            title="Clear every brand's priority back to none (-1)">
+            {resetting ? 'Resetting…' : '↺ Reset priorities'}
+          </Btn>
+        </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <TableHead cols={['Logo', 'Brand Name', 'Slug / Logo URL', 'Action']} />
+          <TableHead cols={['Logo', 'Brand Name', 'Priority', 'Slug / Logo URL', 'Action']} />
           <tbody>
-            {brands.length === 0 ? <EmptyRow cols={4} text="No brands yet" /> :
+            {brands.length === 0 ? <EmptyRow cols={5} text="No brands yet" /> :
               brands.map(b => editingId === b._id ? (
                 <tr key={b._id} style={{ borderBottom: `1px solid ${C.border}`, background: 'rgba(30,37,53,.85)' }}>
                   <td style={{ padding: '10px 14px' }}>
@@ -197,6 +242,9 @@ function BrandsSection({ onMutate }) {
                   </td>
                   <td style={{ padding: '10px 14px' }}>
                     <Input value={editDraft.name} onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))} placeholder="Brand name" />
+                  </td>
+                  <td style={{ padding: '10px 14px' }}>
+                    <PriorityField value={editDraft.priority} onChange={v => setEditDraft(d => ({ ...d, priority: v }))} max={Math.max(brands.length, 12)} />
                   </td>
                   <td style={{ padding: '10px 14px' }}>
                     <Input value={editDraft.logo} onChange={e => setEditDraft(d => ({ ...d, logo: e.target.value }))} placeholder="Logo URL (optional)" />
@@ -233,6 +281,11 @@ function BrandsSection({ onMutate }) {
                       )}
                     </div>
                   </td>
+                  <td style={{ padding: '12px 14px' }}>
+                    {b.priority >= 0
+                      ? <span style={{ display: 'inline-flex', minWidth: 24, justifyContent: 'center', fontWeight: 700, fontSize: 12, color: C.accent, background: 'rgba(249,115,22,.12)', border: '1px solid rgba(249,115,22,.3)', borderRadius: 6, padding: '2px 8px' }}>{b.priority}</span>
+                      : <span style={{ fontSize: 13, color: C.mute }}>—</span>}
+                  </td>
                   <td style={{ padding: '12px 14px', fontSize: 12, color: C.mute, fontFamily: 'monospace' }}>{b.slug}</td>
                   <td style={{ padding: '12px 14px' }}>
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -254,12 +307,13 @@ function BrandsSection({ onMutate }) {
 /* ════════════════════ CATEGORIES ════════════════════ */
 function CategoriesSection({ onMutate }) {
   const [cats, setCats] = useState([]);
-  const [draft, setDraft, clearDraft] = useFormDraft('catalog-category', { name: '', desc: '', imageUrl: '' });
+  const [draft, setDraft, clearDraft] = useFormDraft('catalog-category', { name: '', desc: '', imageUrl: '', priority: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState(null);
-  const [editDraft, setEditDraft] = useState({ name: '', desc: '', imageUrl: '' });
+  const [editDraft, setEditDraft] = useState({ name: '', desc: '', imageUrl: '', priority: '' });
   const [editSaving, setEditSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const topLevel = cats.filter(c => !c.parent);
   const load = () => categoriesApi.getAll()
@@ -272,7 +326,7 @@ function CategoriesSection({ onMutate }) {
     if (!draft.name.trim()) return;
     setSaving(true); setError('');
     try {
-      await categoriesApi.create({ name: draft.name.trim(), description: draft.desc, imageUrl: draft.imageUrl.trim() || undefined });
+      await categoriesApi.create({ name: draft.name.trim(), description: draft.desc, imageUrl: draft.imageUrl.trim() || undefined, priority: draftToPriority(draft.priority) });
       clearDraft(); load(); onMutate?.();
     } catch (err) { setError(err.response?.data?.message || err.message || 'Failed to create category'); }
     finally { setSaving(false); }
@@ -284,13 +338,20 @@ function CategoriesSection({ onMutate }) {
     catch (err) { setError(err.response?.data?.message || 'Failed to delete category'); }
   };
 
-  const startEdit = (c) => { setEditingId(c._id); setEditDraft({ name: c.name, desc: c.description || '', imageUrl: c.image || '' }); };
+  const resetPriorities = async () => {
+    setResetting(true); setError('');
+    try { await categoriesApi.resetPriorities(); load(); onMutate?.(); }
+    catch (err) { setError(err.response?.data?.message || 'Failed to reset priorities'); }
+    finally { setResetting(false); }
+  };
+
+  const startEdit = (c) => { setEditingId(c._id); setEditDraft({ name: c.name, desc: c.description || '', imageUrl: c.image || '', priority: priorityToDraft(c.priority) }); };
   const cancelEdit = () => setEditingId(null);
   const saveEdit = async (id) => {
     if (!editDraft.name.trim()) return;
     setEditSaving(true); setError('');
     try {
-      await categoriesApi.update(id, { name: editDraft.name.trim(), description: editDraft.desc, imageUrl: editDraft.imageUrl.trim() || undefined });
+      await categoriesApi.update(id, { name: editDraft.name.trim(), description: editDraft.desc, imageUrl: editDraft.imageUrl.trim() || undefined, priority: draftToPriority(editDraft.priority) });
       setEditingId(null); load(); onMutate?.();
     } catch (err) { setError(err.response?.data?.message || 'Failed to update category'); }
     finally { setEditSaving(false); }
@@ -302,9 +363,10 @@ function CategoriesSection({ onMutate }) {
         <SectionTitle>Add Category</SectionTitle>
         <ErrorBar msg={error} />
         <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'flex-end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: 10, alignItems: 'flex-end' }}>
             <Input label="Category Name" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} placeholder="e.g. Washing Machines" required />
             <Input label="Description (optional)" value={draft.desc} onChange={e => setDraft(d => ({ ...d, desc: e.target.value }))} placeholder="Short description" />
+            <PriorityField label="Priority (home order)" value={draft.priority} onChange={v => setDraft(d => ({ ...d, priority: v }))} max={Math.max(topLevel.length, 12)} />
             <Btn type="submit" disabled={saving}>{saving ? 'Saving…' : '+ Add'}</Btn>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -322,11 +384,17 @@ function CategoriesSection({ onMutate }) {
       </Card>
 
       <Card>
-        <SectionTitle>Top-level Categories</SectionTitle>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <SectionTitle>Top-level Categories</SectionTitle>
+          <Btn variant="ghost" onClick={resetPriorities} disabled={resetting}
+            title="Clear every category's priority back to none (-1)">
+            {resetting ? 'Resetting…' : '↺ Reset priorities'}
+          </Btn>
+        </div>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <TableHead cols={['Image', 'Name', 'Slug', 'Description', 'Action']} />
+          <TableHead cols={['Image', 'Name', 'Priority', 'Slug', 'Description', 'Action']} />
           <tbody>
-            {topLevel.length === 0 ? <EmptyRow cols={5} text="No categories yet" /> :
+            {topLevel.length === 0 ? <EmptyRow cols={6} text="No categories yet" /> :
               topLevel.map(c => editingId === c._id ? (
                 <tr key={c._id} style={{ borderBottom: `1px solid ${C.border}`, background: 'rgba(30,37,53,.85)' }}>
                   <td style={{ padding: '10px 14px' }}>
@@ -339,6 +407,9 @@ function CategoriesSection({ onMutate }) {
                   </td>
                   <td style={{ padding: '10px 14px' }}>
                     <Input value={editDraft.name} onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))} placeholder="Category name" />
+                  </td>
+                  <td style={{ padding: '10px 14px' }}>
+                    <PriorityField value={editDraft.priority} onChange={v => setEditDraft(d => ({ ...d, priority: v }))} max={Math.max(topLevel.length, 12)} />
                   </td>
                   <td style={{ padding: '12px 14px', fontSize: 12, color: C.mute, fontFamily: 'monospace' }}>{c.slug}</td>
                   <td style={{ padding: '10px 14px' }}>
@@ -365,6 +436,11 @@ function CategoriesSection({ onMutate }) {
                     </div>
                   </td>
                   <td style={{ padding: '12px 14px', fontWeight: 600, fontSize: 13, color: C.text }}>{c.name}</td>
+                  <td style={{ padding: '12px 14px' }}>
+                    {c.priority >= 0
+                      ? <span style={{ display: 'inline-flex', minWidth: 24, justifyContent: 'center', fontWeight: 700, fontSize: 12, color: C.accent, background: 'rgba(249,115,22,.12)', border: '1px solid rgba(249,115,22,.3)', borderRadius: 6, padding: '2px 8px' }}>{c.priority}</span>
+                      : <span style={{ fontSize: 13, color: C.mute }}>—</span>}
+                  </td>
                   <td style={{ padding: '12px 14px', fontSize: 12, color: C.mute, fontFamily: 'monospace' }}>{c.slug}</td>
                   <td style={{ padding: '12px 14px', fontSize: 12, color: C.mute }}>{c.description || '—'}</td>
                   <td style={{ padding: '12px 14px' }}>

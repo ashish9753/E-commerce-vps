@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createBrand, getAllBrands, updateBrand, deleteBrand, restoreBrand } from "../controllers/brand.controller.js";
+import { createBrand, getAllBrands, updateBrand, deleteBrand, restoreBrand, resetBrandPriorities } from "../controllers/brand.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { authorize } from "../middleware/role.middleware.js";
 import { requirePermission } from "../middleware/permission.middleware.js";
@@ -13,6 +13,8 @@ router.use(protect, authorize("admin", "employee"));
 // Admin/employee — includes inactive brands so they can see + restore hidden ones
 router.get("/all", requirePermission("catalog"), getAllBrands);
 router.post("/", requirePermission("catalog.write"), createBrand);
+// Literal route must be registered before "/:brandId" so it isn't swallowed as an id.
+router.patch("/reset-priorities", requirePermission("catalog.write"), resetBrandPriorities);
 router.patch("/:brandId/restore", requirePermission("catalog.write"), restoreBrand);
 router.patch("/:brandId", requirePermission("catalog.write"), updateBrand);
 router.delete("/:brandId", requirePermission("catalog.write"), deleteBrand);

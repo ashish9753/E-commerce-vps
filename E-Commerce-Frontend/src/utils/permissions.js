@@ -19,6 +19,7 @@ export const PERMISSION_GROUPS = [
   { key: 'salary',         label: 'My Salary',          write: false },
   { key: 'catalog',        label: 'Catalog',            write: true  },
   { key: 'banners',        label: 'Banners',            write: true  },
+  { key: 'media',          label: 'Media / Highlights', write: true  },
   { key: 'settings',       label: 'Settings',           write: true  },
 ];
 

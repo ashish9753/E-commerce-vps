@@ -16,6 +16,7 @@ import { attributesApi } from '../../api/catalog';
 import { useCatalog } from '../../context/CatalogContext';
 import AdminCatalogTab from '../admin/AdminCatalogTab';
 import AdminBannersTab from '../admin/AdminBannersTab';
+import AdminMediaTab from '../admin/AdminMediaTab';
 import { AdminSupportTab } from '../admin/AdminDashboard';
 import { hasPermission, ALL_PERMISSIONS } from '../../utils/permissions';
 import { isHttpUrl, toDirectImageUrl } from '../../utils/imageUrl';
@@ -3125,6 +3126,7 @@ const NAV_TABS = [
   { id:'My Salary',       iconEl: Icon.dollar,  perm: 'salary' },
   { id:'Catalog',         iconEl: Icon.catalog, perm: 'catalog' },
   { id:'Banners',         iconEl: Icon.bag,     perm: 'banners' },
+  { id:'Media',           iconEl: Icon.catalog, perm: 'media' },
   { id:'Settings',        iconEl: Icon.gear,    perm: 'settings' },
 ];
 
@@ -3494,6 +3496,7 @@ export default function SellerDashboard() {
                 <div style={{ display: tab==='My Salary'     ? '' : 'none' }}>{mountedTabs.has('My Salary')     && <MySalaryTab          key={refreshKeys['My Salary']      || 0} />}</div>
                 <div style={{ display: tab==='Catalog'       ? '' : 'none' }}>{mountedTabs.has('Catalog')       && <AdminCatalogTab      key={refreshKeys['Catalog']        || 0} />}</div>
                 <div style={{ display: tab==='Banners'       ? '' : 'none' }}>{mountedTabs.has('Banners')       && <AdminBannersTab      key={refreshKeys['Banners']        || 0} />}</div>
+                <div style={{ display: tab==='Media'         ? '' : 'none' }}>{mountedTabs.has('Media')         && <AdminMediaTab        key={refreshKeys['Media']          || 0} />}</div>
                 <div style={{ display: tab==='Settings'      ? '' : 'none' }}>{mountedTabs.has('Settings')      && <EmployeeSettingsTab  key={refreshKeys['Settings']       || 0} />}</div>
                 {tab==='Add Product' && <ProductForm onSave={handleAddProduct} />}
               </>)}

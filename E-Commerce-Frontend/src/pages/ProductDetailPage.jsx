@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Heart, ShoppingCart, Share2, ShieldCheck, RefreshCw, Truck, Star, ChevronRight } from 'lucide-react';
 import { useCart } from '../context/CartContext';
@@ -65,6 +65,7 @@ export default function ProductDetailPage() {
     });
   };
   const [activeThumb, setActiveThumb] = useState(0);
+  const swipeStartX = useRef(null); // tracks touch start X for mobile gallery swipe
   const [location, setLocation]           = useState('');
   const [locationResult, setLocationResult] = useState(null); // { available, city, deliveryCharge } | null
   const [locationChecking, setLocationChecking] = useState(false);
@@ -282,6 +283,20 @@ export default function ProductDetailPage() {
   const images   = product.images?.length ? product.images : [];
   const thumbs   = images.slice(0, 6);
 
+  // Touch-swipe for the mobile gallery: swipe left → next photo, swipe right →
+  // previous. Wraps around so the strip feels continuous.
+  const onGalleryTouchStart = (e) => { swipeStartX.current = e.touches[0].clientX; };
+  const onGalleryTouchEnd = (e) => {
+    if (swipeStartX.current == null || thumbs.length < 2) return;
+    const dx = e.changedTouches[0].clientX - swipeStartX.current;
+    if (Math.abs(dx) > 40) {
+      setActiveThumb((t) => (dx < 0
+        ? (t + 1) % thumbs.length
+        : (t - 1 + thumbs.length) % thumbs.length));
+    }
+    swipeStartX.current = null;
+  };
+
   // ── Share handlers (defined after product is guaranteed non-null) ──────────
   const handleShare = async () => {
     const url = window.location.href;
@@ -446,8 +461,8 @@ export default function ProductDetailPage() {
           <div style={{ width:'100%', maxWidth:420 }}>
             {/* Thumbnails + main image side by side */}
             <div style={{ display:'flex', gap:10 }}>
-              {/* Thumb strip */}
-              {thumbs.length > 1 && (
+              {/* Thumb strip — desktop only; on phones it moves below the image */}
+              {thumbs.length > 1 && !isMobile && (
                 <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                   {thumbs.map((img, i) => (
                     <div key={i} onClick={() => setActiveThumb(i)}
@@ -461,15 +476,31 @@ export default function ProductDetailPage() {
               )}
 
               {/* Main image */}
-              <div style={{ flex:1, aspectRatio:'1', background:'#f7f7f7', borderRadius:6,
-                display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', position:'relative' }}>
+              <div
+                onTouchStart={onGalleryTouchStart}
+                onTouchEnd={onGalleryTouchEnd}
+                style={{ flex:1, aspectRatio:'1', background:'#f7f7f7', borderRadius:6,
+                display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', position:'relative',
+                touchAction:'pan-y' }}>
                 {thumbs[activeThumb] ? (
                   <img src={thumbs[activeThumb]} alt={product.name}
                     onClick={() => setLightboxOpen(true)}
                     title="Click to enlarge"
+                    draggable={false}
                     style={{ width:'100%', height:'100%', objectFit:'contain', padding:12, cursor:'zoom-in' }} />
                 ) : (
                   <span style={{ fontSize:120 }}>🛍️</span>
+                )}
+                {/* Swipe dots — mobile only */}
+                {isMobile && thumbs.length > 1 && (
+                  <div style={{ position:'absolute', bottom:8, left:0, right:0, display:'flex',
+                    justifyContent:'center', gap:6, pointerEvents:'none' }}>
+                    {thumbs.map((_, i) => (
+                      <span key={i} style={{ width:6, height:6, borderRadius:'50%',
+                        background: activeThumb === i ? '#FF5A1F' : 'rgba(0,0,0,.22)',
+                        transition:'background .2s' }} />
+                    ))}
+                  </div>
                 )}
                 {/* Share icon + dropdown */}
                 <div style={{ position:'absolute', top:10, right:10 }}>
@@ -548,6 +579,22 @@ export default function ProductDetailPage() {
                 {wished ? 'Wishlisted' : 'Add to Wish List'}
               </button>
             </div>
+
+            {/* Horizontal thumbnail strip — mobile only, below the wishlist button */}
+            {isMobile && thumbs.length > 1 && (
+              <div style={{ display:'flex', gap:8, marginTop:12, overflowX:'auto',
+                paddingBottom:4, scrollbarWidth:'none' }}>
+                {thumbs.map((img, i) => (
+                  <div key={i} onClick={() => setActiveThumb(i)}
+                    style={{ width:56, height:56, flexShrink:0,
+                      border:`2px solid ${activeThumb===i ? '#FF5A1F' : '#ddd'}`,
+                      borderRadius:6, overflow:'hidden', cursor:'pointer', display:'flex',
+                      alignItems:'center', justifyContent:'center', background:'#f7f7f7' }}>
+                    <img src={img} alt="" style={{ width:'100%', height:'100%', objectFit:'contain', padding:2 }} />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ── Col 2: Product Info ── */}

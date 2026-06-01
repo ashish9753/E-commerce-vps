@@ -1,6 +1,7 @@
 import Brand from "../models/brand.model.js";
 import { generateUniqueSlug } from "../utils/slugify.utils.js";
 import { toDirectImageUrl } from "../utils/imageUrl.utils.js";
+import { normalizePriority, findPriorityConflict, byPriorityThenName } from "../utils/priority.utils.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 
@@ -29,19 +30,26 @@ export const createBrand = async (req, res, next) => {
     if (!name) throw new ApiError(400, "Brand name is required");
     const trimmed = name.trim();
 
+    const priority = normalizePriority(req.body.priority);
+    if (priority >= 0) {
+      const clash = await findPriorityConflict(Brand, priority);
+      if (clash) throw new ApiError(409, `Priority ${priority} is already used by "${clash.name}"`);
+    }
+
     const existing = await findExistingBrand(trimmed);
     if (existing) {
       if (existing.isActive) throw new ApiError(409, `Brand "${existing.name}" already exists`);
       // Reactivate a previously hidden brand instead of confusing the admin with a duplicate error.
       existing.isActive = true;
       if (logo) existing.logo = logo;
+      if (priority !== undefined) existing.priority = priority;
       await existing.save();
       return res.status(200).json(new ApiResponse(200, { brand: existing }, `Brand "${existing.name}" was hidden — it has been restored`));
     }
 
     const slug = await generateUniqueSlug(trimmed, Brand);
     try {
-      const brand = await Brand.create({ name: trimmed, slug, logo });
+      const brand = await Brand.create({ name: trimmed, slug, logo, ...(priority !== undefined ? { priority } : {}) });
       return res.status(201).json(new ApiResponse(201, { brand }, "Brand created"));
     } catch (err) {
       // Mongo unique index caught a duplicate the pre-check missed (rare edge cases —
@@ -54,6 +62,7 @@ export const createBrand = async (req, res, next) => {
           }
           dup.isActive = true;
           if (logo) dup.logo = logo;
+          if (priority !== undefined) dup.priority = priority;
           await dup.save();
           return res.status(200).json(new ApiResponse(200, { brand: dup }, `Brand "${dup.name}" was hidden — it has been restored`));
         }
@@ -70,7 +79,8 @@ export const getAllBrands = async (req, res, next) => {
     //   GET /brands/all   (admin/emp)  — includes hidden brands so staff can restore them
     const isAdminAll = req.path === "/all" && req.user && (req.user.role === "admin" || req.user.role === "employee");
     const filter = isAdminAll ? {} : { isActive: true };
-    const brands = await Brand.find(filter).sort({ name: 1 });
+    // Pinned brands (priority >= 0) first by ascending priority, the rest A→Z.
+    const brands = (await Brand.find(filter)).sort(byPriorityThenName);
     // The catalog changes the moment an admin/employee adds or edits a brand, so
     // the list must never be served stale from a browser or edge/CDN cache —
     // otherwise a freshly-added brand stays invisible to other staff even after
@@ -103,9 +113,26 @@ export const updateBrand = async (req, res, next) => {
       updates.name = trimmed;
       updates.slug = await generateUniqueSlug(trimmed, Brand, req.params.brandId);
     }
+    const priority = normalizePriority(req.body.priority);
+    if (priority !== undefined) {
+      if (priority >= 0) {
+        const clash = await findPriorityConflict(Brand, priority, req.params.brandId);
+        if (clash) throw new ApiError(409, `Priority ${priority} is already used by "${clash.name}"`);
+      }
+      updates.priority = priority;
+    }
     const brand = await Brand.findByIdAndUpdate(req.params.brandId, updates, { new: true });
     if (!brand) throw new ApiError(404, "Brand not found");
     res.json(new ApiResponse(200, { brand }, "Brand updated"));
+  } catch (err) { next(err); }
+};
+
+// Clear every brand's manual ordering back to "none" (-1).
+export const resetBrandPriorities = async (req, res, next) => {
+  try {
+    await Brand.updateMany({ priority: { $ne: -1 } }, { priority: -1 });
+    res.set("Cache-Control", "no-store");
+    res.json(new ApiResponse(200, null, "All brand priorities reset"));
   } catch (err) { next(err); }
 };
 

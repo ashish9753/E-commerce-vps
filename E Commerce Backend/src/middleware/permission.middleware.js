@@ -14,6 +14,7 @@ export const PERMISSION_KEYS = [
   "salary",
   "catalog",  "catalog.write",
   "banners",  "banners.write",
+  "media",    "media.write",
   "settings", "settings.write",
 ];
 

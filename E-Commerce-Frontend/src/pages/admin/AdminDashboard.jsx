@@ -18,6 +18,7 @@ import SupportIcon from '../../components/icons/SupportIcon';
 import OrderPipeline from '../../components/orders/OrderPipeline';
 import AdminCatalogTab from './AdminCatalogTab';
 import AdminBannersTab from './AdminBannersTab';
+import AdminMediaTab from './AdminMediaTab';
 import { employeeApi } from '../../api/employee';
 import { ProductsTab, ProductForm, DeliveryAreasTab } from '../employee/EmployeeDashboard';
 import { PERMISSION_GROUPS, ALL_PERMISSIONS } from '../../utils/permissions';
@@ -3727,6 +3728,7 @@ const NAV_SECTIONS = [
     tabs: [
       { id: 'Catalog',  iconEl: Icon.book },
       { id: 'Banners',  iconEl: Icon.bag },
+      { id: 'Media',    iconEl: Icon.book },
     ],
   },
   {
@@ -4167,6 +4169,7 @@ export default function AdminDashboard() {
           <div style={{ display: tab === 'Inventory'     ? '' : 'none' }}>{mountedTabs.has('Inventory')     && <InventoryTab      key={refreshKeys['Inventory']     || 0} globalSearch={globalSearch} />}</div>
           <div style={{ display: tab === 'Catalog'       ? '' : 'none' }}>{mountedTabs.has('Catalog')       && <AdminCatalogTab   key={refreshKeys['Catalog']       || 0} />}</div>
           <div style={{ display: tab === 'Banners'       ? '' : 'none' }}>{mountedTabs.has('Banners')       && <AdminBannersTab   key={refreshKeys['Banners']       || 0} />}</div>
+          <div style={{ display: tab === 'Media'         ? '' : 'none' }}>{mountedTabs.has('Media')         && <AdminMediaTab     key={refreshKeys['Media']         || 0} />}</div>
           <div style={{ display: tab === 'Settings'      ? '' : 'none' }}>{mountedTabs.has('Settings')      && <AdminSettingsTab  key={refreshKeys['Settings']      || 0} />}</div>
         </div>
       </div>
