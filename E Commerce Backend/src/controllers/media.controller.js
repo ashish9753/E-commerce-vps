@@ -16,11 +16,14 @@ const buildFields = (body) => {
   const out = {
     url,
     title: (body.title || "").trim(),
+    handle: (body.handle || "").trim(),
     type: detected.type,
     thumbnail: adminThumb ? toDirectImageUrl(adminThumb) : detected.thumbnail,
   };
   if (body.isActive !== undefined) out.isActive = parseBoolean(body.isActive);
   if (body.position !== undefined) out.position = parseInt(body.position, 10) || 0;
+  if (body.likes !== undefined) out.likes = Math.max(0, parseInt(body.likes, 10) || 0);
+  if (body.comments !== undefined) out.comments = Math.max(0, parseInt(body.comments, 10) || 0);
   return out;
 };
 

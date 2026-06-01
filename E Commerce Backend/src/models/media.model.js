@@ -6,9 +6,12 @@ import mongoose from "mongoose";
 // new tab. No file uploads, no inline embeds.
 const mediaSchema = new mongoose.Schema(
   {
-    title:     { type: String, default: "" },   // optional caption
+    title:     { type: String, default: "" },   // caption shown under the card
     url:       { type: String, required: true }, // the source link, opened on click
     thumbnail: { type: String, default: "" },    // optional/derived preview image
+    handle:    { type: String, default: "" },    // account name shown in card header (e.g. "tradengine")
+    likes:     { type: Number, default: 0 },     // optional engagement counts (for the IG-style card)
+    comments:  { type: Number, default: 0 },
     type: {
       type: String,
       enum: ["image", "video", "youtube", "instagram", "facebook", "tiktok", "drive", "link"],

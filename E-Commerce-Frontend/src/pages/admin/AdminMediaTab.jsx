@@ -4,7 +4,7 @@ import { C } from '../../theme/dashboardTheme';
 import { isHttpUrl } from '../../utils/imageUrl';
 import { detectMedia, mediaThumbnail, PLATFORM, isVideoType } from '../../utils/media';
 
-const emptyDraft = { url: '', title: '', thumbnail: '', position: 0, isActive: true };
+const emptyDraft = { url: '', title: '', thumbnail: '', handle: '', likes: '', comments: '', position: 0, isActive: true };
 
 function Field({ label, hint, children }) {
   return (
@@ -74,6 +74,7 @@ export default function AdminMediaTab() {
     setEditingId(m._id);
     setDraft({
       url: m.url || '', title: m.title || '', thumbnail: m.thumbnail || '',
+      handle: m.handle || '', likes: m.likes ?? '', comments: m.comments ?? '',
       position: m.position ?? 0, isActive: m.isActive !== false,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -89,6 +90,9 @@ export default function AdminMediaTab() {
         url: draft.url.trim(),
         title: draft.title.trim(),
         thumbnail: draft.thumbnail.trim(),
+        handle: draft.handle.trim(),
+        likes: Number(draft.likes) || 0,
+        comments: Number(draft.comments) || 0,
         position: Number(draft.position) || 0,
         isActive: draft.isActive,
       };
@@ -150,6 +154,17 @@ export default function AdminMediaTab() {
             <Field label="Title / Caption" hint="optional">
               <input value={draft.title} onChange={e => set('title', e.target.value)} placeholder="New store opening 🎉" style={inpStyle()} />
             </Field>
+            <Field label="Account Handle" hint="shown in the card header">
+              <input value={draft.handle} onChange={e => set('handle', e.target.value)} placeholder="tradengine" style={inpStyle()} />
+            </Field>
+
+            <Field label="Likes" hint="optional — for the social-card look">
+              <input type="number" min="0" value={draft.likes} onChange={e => set('likes', e.target.value)} placeholder="0" style={inpStyle()} />
+            </Field>
+            <Field label="Comments" hint="optional">
+              <input type="number" min="0" value={draft.comments} onChange={e => set('comments', e.target.value)} placeholder="0" style={inpStyle()} />
+            </Field>
+
             <Field label="Display Order" hint="lower shows first">
               <input type="number" value={draft.position} onChange={e => set('position', e.target.value)} placeholder="0" style={inpStyle()} />
             </Field>
