@@ -5,6 +5,14 @@ import { useAuth } from './AuthContext';
 
 const CartContext = createContext(null);
 
+// A cart line is identified by product + color, so the same product in two
+// colors stays as two independent lines.
+const lineKey = (productId, color = '') => `${productId}::${color || ''}`;
+const sameLine = (item, productId, color = '') => {
+  const id = item.product?._id || item.product;
+  return id?.toString() === productId?.toString() && (item.color || '') === (color || '');
+};
+
 // How long to wait after the last +/- click before firing the PATCH. Short
 // enough to feel real-time, long enough to collapse rapid clicks (1→5 in
 // half a second) into a single request.
@@ -37,13 +45,14 @@ export function CartProvider({ children }) {
 
   useEffect(() => { fetchCart(); }, [fetchCart]);
 
-  const addToCart = async (productId, quantity = 1) => {
+  const addToCart = async (productId, quantity = 1, color = '') => {
     try {
-      const { data } = await cartApi.addItem(productId, quantity);
+      const { data } = await cartApi.addItem(productId, quantity, color);
       setCart(data.data.cart);
-      const entry = pendingRef.current[productId];
+      const k = lineKey(productId, color);
+      const entry = pendingRef.current[k];
       if (entry?.timer) clearTimeout(entry.timer);
-      delete pendingRef.current[productId];
+      delete pendingRef.current[k];
       return { success: true };
     } catch (err) {
       return { success: false, error: getErrorMessage(err) };
@@ -53,14 +62,14 @@ export function CartProvider({ children }) {
   // Fire the queued PATCH for a single product. Called from the debounce
   // timer below. On failure we re-fetch the cart so the UI lands on the
   // server's truth instead of an inconsistent optimistic value.
-  const flushOne = async (productId) => {
-    const entry = pendingRef.current[productId];
+  const flushOne = async (key) => {
+    const entry = pendingRef.current[key];
     if (!entry) return;
-    const qty = entry.qty;
-    delete pendingRef.current[productId];
+    const { productId, color, qty } = entry;
+    delete pendingRef.current[key];
     try {
-      if (qty === 0) await cartApi.removeItem(productId);
-      else           await cartApi.updateItem(productId, qty);
+      if (qty === 0) await cartApi.removeItem(productId, color);
+      else           await cartApi.updateItem(productId, qty, color);
     } catch {
       // Server rejected (stock issue, deleted product, etc.) — reload truth.
       fetchCart();
@@ -69,39 +78,35 @@ export function CartProvider({ children }) {
 
   // Optimistic local update + debounced PATCH. The user sees the change
   // immediately; the database catches up DEBOUNCE_MS after their last click.
-  const updateQty = (productId, quantity) => {
+  const updateQty = (productId, color, quantity) => {
     if (quantity < 1) return; // minimum is 1 — use Remove button to delete
     setCart(prev => {
       if (!prev) return prev;
-      const items = prev.items.map(i => {
-        const id = i.product?._id || i.product;
-        return id?.toString() === productId?.toString() ? { ...i, quantity } : i;
-      });
+      const items = prev.items.map(i => (sameLine(i, productId, color) ? { ...i, quantity } : i));
       return { ...prev, items };
     });
 
-    const existing = pendingRef.current[productId];
+    const k = lineKey(productId, color);
+    const existing = pendingRef.current[k];
     if (existing?.timer) clearTimeout(existing.timer);
-    const timer = setTimeout(() => flushOne(productId), DEBOUNCE_MS);
-    pendingRef.current[productId] = { qty: quantity, timer };
+    const timer = setTimeout(() => flushOne(k), DEBOUNCE_MS);
+    pendingRef.current[k] = { productId, color: color || '', qty: quantity, timer };
   };
 
   // Optimistic local removal + immediate API call — no debounce because
   // delete is a deliberate one-shot action (Trash icon click).
-  const removeFromCart = async (productId) => {
+  const removeFromCart = async (productId, color = '') => {
     setCart(prev => {
       if (!prev) return prev;
-      const items = prev.items.filter(i => {
-        const id = i.product?._id || i.product;
-        return id?.toString() !== productId?.toString();
-      });
+      const items = prev.items.filter(i => !sameLine(i, productId, color));
       return { ...prev, items };
     });
-    const existing = pendingRef.current[productId];
+    const k = lineKey(productId, color);
+    const existing = pendingRef.current[k];
     if (existing?.timer) clearTimeout(existing.timer);
-    delete pendingRef.current[productId];
+    delete pendingRef.current[k];
     try {
-      const { data } = await cartApi.removeItem(productId);
+      const { data } = await cartApi.removeItem(productId, color);
       setCart(data.data.cart);
       return { success: true };
     } catch (err) {
@@ -123,10 +128,10 @@ export function CartProvider({ children }) {
       // Cancel timers and fire everything in parallel.
       entries.forEach(([, p]) => p?.timer && clearTimeout(p.timer));
       await Promise.all(
-        entries.map(([pid, { qty }]) =>
+        entries.map(([, { productId, color, qty }]) =>
           qty === 0
-            ? cartApi.removeItem(pid).catch(() => {})
-            : cartApi.updateItem(pid, qty).catch(() => {})
+            ? cartApi.removeItem(productId, color).catch(() => {})
+            : cartApi.updateItem(productId, qty, color).catch(() => {})
         )
       );
       pendingRef.current = {};

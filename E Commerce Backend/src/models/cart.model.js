@@ -4,6 +4,9 @@ const cartItemSchema = new mongoose.Schema({
   product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
   quantity: { type: Number, required: true, min: 1 },
   price: { type: Number, required: true },
+  // Selected color/variant name (empty for products without colors). A cart
+  // line is uniquely identified by product + color.
+  color: { type: String, default: "" },
 }, { _id: false });
 
 const cartSchema = new mongoose.Schema(

@@ -329,6 +329,7 @@ export default function OrderTrackingPage() {
                         </div>
                         <div style={{ flex:1 }}>
                           <div style={{ fontWeight:600, fontSize:14, marginBottom:6 }}>{item.title}</div>
+                          {item.color && <div style={{ fontSize:13, color:'#555', marginBottom:4 }}>Color: <b>{item.color}</b></div>}
                           <div style={{ fontSize:13, color:'#888', marginBottom:4 }}>Qty: {item.quantity}</div>
                           <div style={{ fontSize:14, fontWeight:700 }}>
                             {formatPriceShort(item.price * item.quantity)}

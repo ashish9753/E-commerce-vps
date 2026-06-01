@@ -64,7 +64,7 @@ export default function SocialShowcase() {
   };
 
   return (
-    <section className="sf">
+    <section className="sf" id="social-footprints">
       <div className="sf-wrap">
         <div className="sf-panel">
           {/* Pill heading tab */}

@@ -65,6 +65,7 @@ export default function ProductDetailPage() {
     });
   };
   const [activeThumb, setActiveThumb] = useState(0);
+  const [selectedColor, setSelectedColor] = useState(''); // chosen color name ('' = none yet)
   const swipeStartX = useRef(null); // tracks touch start X for mobile gallery swipe
   const [location, setLocation]           = useState('');
   const [locationResult, setLocationResult] = useState(null); // { available, city, deliveryCharge } | null
@@ -256,8 +257,11 @@ export default function ProductDetailPage() {
 
   // Hard cap on quantity — backend allows max 50, UI shouldn't offer more than
   // what's actually in stock either. Computed before early returns so the hooks
-  // below run on every render (Rules of Hooks).
-  const stockNum = product?.stock || 0;
+  // below run on every render (Rules of Hooks). When a color is selected, the
+  // cap follows that color's stock.
+  const colorsArr   = product?.colors || [];
+  const activeColor = colorsArr.find((c) => c.name === selectedColor) || null;
+  const stockNum = activeColor ? (activeColor.stock || 0) : (product?.stock || 0);
   const maxQty = Math.max(1, Math.min(stockNum, 50));
 
   // If stock dropped (e.g. fresh fetch after someone else bought some), clamp qty.
@@ -321,29 +325,44 @@ export default function ProductDetailPage() {
     if (e.key === 'ArrowRight') setActiveThumb(t => Math.min(t + 1, thumbs.length - 1));
     if (e.key === 'ArrowLeft')  setActiveThumb(t => Math.max(t - 1, 0));
   };
-  const mrp      = Number(product.was || product.price || 0);
-  const sale     = Number(product.price || 0);
+  // Color variants: when a product has colors, the customer must pick one, and
+  // the chosen color drives the price, MRP, stock and main image.
+  const hasColors  = colorsArr.length > 0;
+  const sale = activeColor
+    ? Number(activeColor.discountPrice || activeColor.price || 0)
+    : Number(product.price || 0);
+  const mrp = activeColor
+    ? Number(activeColor.price || activeColor.discountPrice || 0)
+    : Number(product.was || product.price || 0);
   const discount = mrp > sale && sale > 0 ? Math.round(((mrp - sale) / mrp) * 100) : 0;
-  const inStock  = product.stock > 0;
+  // Available stock for the current selection (color stock, or product stock).
+  const effStock = activeColor ? (activeColor.stock || 0) : product.stock;
+  const inStock  = hasColors ? (activeColor ? activeColor.stock > 0 : product.stock > 0) : product.stock > 0;
+  // Can order only when in stock AND (color-less OR a color is chosen).
+  const canBuy   = inStock && (!hasColors || !!activeColor);
+  // Main image swaps to the selected color's image when it has one.
+  const mainImage = activeColor?.image || thumbs[activeThumb];
 
   /* Description lines → bullets */
   const descLines = (product.description || '').split('\n').map(l => l.trim()).filter(Boolean);
 
   const handleAddToCart = async () => {
     if (!user) { toast('Please sign in to add items to cart', 'error'); navigate('/login'); return; }
-    if (qty > product.stock) {
-      toast(`Only ${product.stock} in stock — adjust quantity to continue.`, 'error');
+    if (hasColors && !activeColor) { toast('Please select a color', 'error'); return; }
+    if (qty > effStock) {
+      toast(`Only ${effStock} in stock — adjust quantity to continue.`, 'error');
       setQty(maxQty);
       return;
     }
-    const result = await addToCart(product._id, qty);
+    const result = await addToCart(product._id, qty, selectedColor);
     if (result?.success === false) toast(result.error, 'error');
-    else toast(`${product.name} added to cart`);
+    else toast(`${product.name}${selectedColor ? ` (${selectedColor})` : ''} added to cart`);
   };
   const handleBuyNow = () => {
     if (!user) { navigate('/login'); return; }
-    if (qty > product.stock) {
-      toast(`Only ${product.stock} in stock — adjust quantity to continue.`, 'error');
+    if (hasColors && !activeColor) { toast('Please select a color', 'error'); return; }
+    if (qty > effStock) {
+      toast(`Only ${effStock} in stock — adjust quantity to continue.`, 'error');
       setQty(maxQty);
       return;
     }
@@ -352,10 +371,11 @@ export default function ProductDetailPage() {
         buyNow: {
           productId:  product._id,
           title:      product.name || product.title,
-          price:      product.discountPrice || product.price,
-          image:      product.images?.[0],
-          stock:      product.stock,
+          price:      sale,
+          image:      activeColor?.image || product.images?.[0],
+          stock:      effStock,
           quantity:   qty,
+          color:      selectedColor,
           couponCode: appliedCoupon?.code || null,
         },
       },
@@ -482,8 +502,8 @@ export default function ProductDetailPage() {
                 style={{ flex:1, aspectRatio:'1', background:'#f7f7f7', borderRadius:6,
                 display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', position:'relative',
                 touchAction:'pan-y' }}>
-                {thumbs[activeThumb] ? (
-                  <img src={thumbs[activeThumb]} alt={product.name}
+                {mainImage ? (
+                  <img src={mainImage} alt={product.name}
                     onClick={() => setLightboxOpen(true)}
                     title="Click to enlarge"
                     draggable={false}
@@ -647,6 +667,37 @@ export default function ProductDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* Color selector — required when the product has colors */}
+            {hasColors && (
+              <div style={{ marginBottom:14 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'#0F1111', marginBottom:8 }}>
+                  Color: <span style={{ fontWeight:400, color: selectedColor ? '#0F1111' : '#CC0C39' }}>{selectedColor || 'Select a color'}</span>
+                </div>
+                <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                  {colorsArr.map((c) => {
+                    const isSel = c.name === selectedColor;
+                    const out = (c.stock || 0) <= 0;
+                    return (
+                      <button key={c.name} type="button" disabled={out}
+                        onClick={() => { setSelectedColor(c.name); setQty(1); setActiveThumb(0); }}
+                        title={out ? `${c.name} — out of stock` : c.name}
+                        style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, padding:4, borderRadius:8,
+                          border:`2px solid ${isSel ? '#FF5A1F' : '#ddd'}`, background:'#fff',
+                          cursor: out ? 'not-allowed' : 'pointer', opacity: out ? 0.45 : 1, width:64 }}>
+                        <div style={{ width:48, height:48, borderRadius:6, overflow:'hidden', background:'#f7f7f7', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          {c.image
+                            ? <img src={c.image} alt={c.name} style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                            : <span style={{ fontSize:9, color:'#999', textAlign:'center' }}>{c.name}</span>}
+                        </div>
+                        <span style={{ fontSize:11, color: isSel ? '#0F1111' : '#555', fontWeight: isSel ? 700 : 400, maxWidth:60, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {!activeColor && <div style={{ fontSize:12, color:'#CC0C39', marginTop:6 }}>Please select a color to continue.</div>}
+              </div>
+            )}
 
             <div style={{ height:1, background:'#e7e7e7', margin:'12px 0' }} />
 
@@ -822,8 +873,10 @@ export default function ProductDetailPage() {
 
               {/* Stock */}
               <div style={{ fontSize:18, fontWeight:400, marginBottom:14,
-                color: product.stock > 5 ? '#007600' : product.stock > 0 ? '#FF5A1F' : '#CC0C39' }}>
-                {product.stock > 5 ? 'In stock' : product.stock > 0 ? `Only ${product.stock} left` : 'Currently unavailable'}
+                color: (hasColors && !activeColor) ? '#FF5A1F' : effStock > 5 ? '#007600' : effStock > 0 ? '#FF5A1F' : '#CC0C39' }}>
+                {hasColors && !activeColor
+                  ? 'Select a color to see availability'
+                  : effStock > 5 ? 'In stock' : effStock > 0 ? `Only ${effStock} left` : 'Currently unavailable'}
               </div>
 
               {/* Quantity — options capped to actual stock so the user can never
@@ -840,32 +893,32 @@ export default function ProductDetailPage() {
                       <option key={n} value={n}>{n}</option>
                     ))}
                   </select>
-                  {product.stock <= 5 && (
+                  {effStock <= 5 && (
                     <div style={{ fontSize:11, color:'#FF5A1F', marginTop:4, fontWeight:600 }}>
-                      ⚠ Low stock — only {product.stock} available
+                      ⚠ Low stock — only {effStock} available
                     </div>
                   )}
                 </div>
               )}
 
               {/* Add to Cart */}
-              <button onClick={handleAddToCart} disabled={!inStock}
+              <button onClick={handleAddToCart} disabled={!canBuy}
                 style={{ width:'100%', height:44, borderRadius:99, border:'none',
-                  background: inStock ? '#FFD814' : '#e5e5e5',
-                  color: inStock ? '#0F1111' : '#999',
-                  fontWeight:600, fontSize:14, cursor: inStock ? 'pointer' : 'not-allowed', marginBottom:8,
+                  background: canBuy ? '#FFD814' : '#e5e5e5',
+                  color: canBuy ? '#0F1111' : '#999',
+                  fontWeight:600, fontSize:14, cursor: canBuy ? 'pointer' : 'not-allowed', marginBottom:8,
                   display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-                <ShoppingCart size={16} /> Add to Cart
+                <ShoppingCart size={16} /> {hasColors && !activeColor ? 'Select a color' : 'Add to Cart'}
               </button>
 
               {/* Buy Now */}
-              <button onClick={handleBuyNow} disabled={!inStock}
+              <button onClick={handleBuyNow} disabled={!canBuy}
                 style={{ width:'100%', height:44, borderRadius:99, border:'none',
-                  background: inStock ? '#FF5A1F' : '#e5e5e5',
-                  color: inStock ? 'white' : '#999',
-                  fontWeight:600, fontSize:14, cursor: inStock ? 'pointer' : 'not-allowed', marginBottom:14,
+                  background: canBuy ? '#FF5A1F' : '#e5e5e5',
+                  color: canBuy ? 'white' : '#999',
+                  fontWeight:600, fontSize:14, cursor: canBuy ? 'pointer' : 'not-allowed', marginBottom:14,
                   display:'flex', alignItems:'center', justifyContent:'center' }}>
-                {inStock ? 'Buy Now' : 'Out of Stock'}
+                {!inStock ? 'Out of Stock' : (hasColors && !activeColor) ? 'Select a color' : 'Buy Now'}
               </button>
 
               {/* Coupon */}

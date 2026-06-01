@@ -30,6 +30,8 @@ export default function WishlistPage() {
 
   const moveToCart = async (item) => {
     const productId = item._id || item;
+    // Colored products need a color chosen on the product page.
+    if (item.colors?.length) { navigate(`/product/${productId}`); return; }
     const result = await addToCart(productId, 1);
     if (result?.success === false) { toast(result.error, 'error'); return; }
     await remove(productId);

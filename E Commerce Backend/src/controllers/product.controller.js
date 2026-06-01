@@ -9,7 +9,30 @@ import { getPaginationData, buildPaginatedResponse } from "../utils/pagination.u
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { notifyAdmins } from "../utils/notify.js";
-import { normalizeImageUrls } from "../utils/imageUrl.utils.js";
+import { normalizeImageUrls, toDirectImageUrl } from "../utils/imageUrl.utils.js";
+
+// Parse the `colors` field (a JSON string from multipart FormData, or an array).
+// Returns undefined when the field was not sent (so updates can leave colors
+// untouched), or a cleaned array otherwise. Each color's image is normalized to
+// a directly-embeddable URL.
+const parseColors = (raw) => {
+  if (raw === undefined || raw === null) return undefined;
+  let arr = raw;
+  if (typeof raw === "string") {
+    try { arr = JSON.parse(raw); } catch { return []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((c) => c && String(c.name || "").trim())
+    .map((c) => ({
+      name: String(c.name).trim(),
+      image: c.image ? toDirectImageUrl(String(c.image).trim()) : "",
+      price: c.price !== undefined && c.price !== "" ? parseFloat(c.price) : undefined,
+      discountPrice: c.discountPrice !== undefined && c.discountPrice !== "" ? parseFloat(c.discountPrice) : undefined,
+      stock: Math.max(0, parseInt(c.stock, 10) || 0),
+    }));
+};
+const sumColorStock = (colors) => colors.reduce((s, c) => s + (Number(c.stock) || 0), 0);
 
 export const createProduct = async (req, res, next) => {
   try {
@@ -41,12 +64,16 @@ export const createProduct = async (req, res, next) => {
     // Append any external image URLs the seller pasted in.
     images = [...images, ...normalizeImageUrls(req.body.imageUrls)];
 
+    const colors = parseColors(req.body.colors) || [];
+
     const product = await Product.create({
       employee: employee._id,
       title, slug, description, shortDescription, category, brand, sku,
       price: parseFloat(price),
       discountPrice: discountPrice ? parseFloat(discountPrice) : undefined,
+      // With colors, the pre-save hook recomputes stock as the sum of colors.
       stock: parseInt(stock) || 0,
+      colors,
       tags: tags ? (Array.isArray(tags) ? tags : tags.split(",").map((t) => t.trim())) : [],
       specifications: specifications ? new Map(Object.entries(typeof specifications === "string" ? JSON.parse(specifications) : specifications)) : new Map(),
       isFeatured:   isFeatured === "true" || isFeatured === true,
@@ -241,6 +268,13 @@ export const updateProduct = async (req, res, next) => {
       const raw = typeof updates.specifications === "string" ? JSON.parse(updates.specifications) : updates.specifications;
       updates.specifications = new Map(Object.entries(raw));
     }
+    // Colors — when provided, replace the set and keep the summed stock in sync
+    // (findByIdAndUpdate bypasses the pre-save hook, so compute it here).
+    const parsedColors = parseColors(req.body.colors);
+    if (parsedColors !== undefined) {
+      updates.colors = parsedColors;
+      if (parsedColors.length > 0) updates.stock = sumColorStock(parsedColors);
+    }
     // keepImages lets the frontend specify which existing images to retain (removes the rest)
     if (req.body.keepImages !== undefined) {
       const keep = Array.isArray(req.body.keepImages) ? req.body.keepImages : [req.body.keepImages];
@@ -279,14 +313,10 @@ export const deleteProduct = async (req, res, next) => {
 export const getMyProducts = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationData(req.query);
+    // Every admin and employee sees the full catalog (and can edit/delete any
+    // product). Products are a shared catalog, not per-employee inventory, so a
+    // newly-added staff member must see everything previous staff created too.
     const filter = { isDeleted: false };
-
-    // Employees only see their own products; admins see all.
-    if (req.user.role !== "admin") {
-      const employee = await Employee.findOne({ user: req.user._id }).select("_id");
-      if (!employee) throw new ApiError(403, "Employee profile not found");
-      filter.employee = employee._id;
-    }
 
     const [products, total] = await Promise.all([
       // Populate the category (with its parent) so the edit form can pre-select

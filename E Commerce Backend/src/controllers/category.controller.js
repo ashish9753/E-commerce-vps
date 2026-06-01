@@ -1,6 +1,7 @@
 import Category from "../models/category.model.js";
 import { uploadToCloudinary } from "../utils/cloudinary.utils.js";
 import { generateUniqueSlug } from "../utils/slugify.utils.js";
+import { toDirectImageUrl } from "../utils/imageUrl.utils.js";
 import { normalizePriority, findPriorityConflict, byPriorityThenName } from "../utils/priority.utils.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
@@ -31,7 +32,9 @@ export const createCategory = async (req, res, next) => {
     }
 
     const slug = await generateUniqueSlug(trimmed, Category);
-    let image = req.body.imageUrl || undefined;
+    // Google Drive *share* links don't render in <img>; rewrite to the direct
+    // embeddable form (same handling as brand logos / product images).
+    let image = toDirectImageUrl(req.body.imageUrl) || undefined;
     if (req.file) {
       const result = await uploadToCloudinary(req.file.buffer, "ecommerce/categories");
       image = result.secure_url;
@@ -71,7 +74,7 @@ export const updateCategory = async (req, res, next) => {
   try {
     const { name, description, parent, isActive, imageUrl } = req.body;
     const updates = { description, parent, isActive };
-    if (imageUrl) updates.image = imageUrl;
+    if (imageUrl) updates.image = toDirectImageUrl(imageUrl);
 
     const priority = normalizePriority(req.body.priority);
     if (priority !== undefined) {

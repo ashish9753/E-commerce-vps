@@ -220,6 +220,7 @@ function ReviewModal({ item, orderId, onClose, onDone }) {
               </div>
               <div>
                 <div style={{ fontWeight:600, fontSize:14 }}>{item.title}</div>
+                {item.color && <div style={{ fontSize:12, color:'#555', marginTop:2 }}>Color: <b>{item.color}</b></div>}
                 <div style={{ fontSize:12, color:'#888', marginTop:2 }}>Qty: {item.quantity} · {formatPriceShort(item.price)} each</div>
               </div>
             </div>
@@ -502,6 +503,12 @@ export default function OrdersPage() {
                           <div style={{ fontWeight:600, fontSize:14, marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>
                             {item.title}
                           </div>
+                          {item.color && (
+                            <div style={{ fontSize:12, color:'#555', marginBottom:4, display:'flex', alignItems:'center', gap:6 }}>
+                              {item.colorImage && <img src={item.colorImage} alt="" style={{ width:16, height:16, borderRadius:'50%', objectFit:'cover', border:'1px solid #ddd' }} />}
+                              Color: <span style={{ fontWeight:600, color:'#0F1111' }}>{item.color}</span>
+                            </div>
+                          )}
                           <div style={{ fontSize:12, color:'#888', marginBottom:6 }}>
                             Qty: {item.quantity} · {formatPriceShort(item.price)} each
                           </div>

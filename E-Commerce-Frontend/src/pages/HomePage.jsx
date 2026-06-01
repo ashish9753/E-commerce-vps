@@ -647,7 +647,7 @@ function ShopByCategory({ categories, products = [] }) {
                 {pageCats.map((category, index) => {
                   const key = category.name.toLowerCase();
                   const Icon = categoryIcons[key] || categoryIcons[key.replace('&', '').trim()] || PackageCheck;
-                  const categoryImg = category.image || getCategoryImage(category.name);
+                  const categoryImg = toDirectImageUrl(category.image) || getCategoryImage(category.name);
                   return (
                     <button
                       className="myn-category-card"

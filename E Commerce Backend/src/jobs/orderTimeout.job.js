@@ -1,6 +1,7 @@
 import Order from "../models/order.model.js";
 import Product from "../models/product.model.js";
 import { notify } from "../utils/notify.js";
+import { buildRestockOps } from "../utils/color.utils.js";
 
 // Online orders that sit unpaid for this many minutes are auto-cancelled
 // and stock is restored. Tunable via env (PENDING_ORDER_TIMEOUT_MIN).
@@ -67,15 +68,8 @@ const sweepOnce = async () => {
         });
         await order.save();
 
-        // Restore stock for every item — same pattern as manual cancel.
-        await Product.bulkWrite(
-          order.orderItems.map(item => ({
-            updateOne: {
-              filter: { _id: item.product },
-              update: { $inc: { stock: item.quantity, sold: -item.quantity } },
-            },
-          }))
-        );
+        // Restore stock for every item (color-aware) — same as manual cancel.
+        await Product.bulkWrite(buildRestockOps(order.orderItems));
 
         await notify({
           userId:  order.user,

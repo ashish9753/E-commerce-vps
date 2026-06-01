@@ -33,9 +33,9 @@ const pickBannerFields = (body) => {
 export const createBanner = async (req, res, next) => {
   try {
     const fields = pickBannerFields(req.body);
-    if (!fields.title) throw new ApiError(400, "Title is required");
 
-    // Image can come from an uploaded file (→ Cloudinary) or an external URL.
+    // Nothing is mandatory. An image may come from an uploaded file (→ Cloudinary)
+    // or an external URL — but a banner can also be created without one.
     // A URL-backed banner has no imagePublicId, so it's never deleted from Cloudinary.
     let image, imagePublicId;
     if (req.file) {
@@ -44,8 +44,6 @@ export const createBanner = async (req, res, next) => {
       imagePublicId = result.public_id;
     } else if (isValidImageUrl(req.body.imageUrl)) {
       image = toDirectImageUrl(req.body.imageUrl);
-    } else {
-      throw new ApiError(400, "Banner image is required — upload a file or provide an image URL");
     }
 
     const banner = await Banner.create({ ...fields, image, imagePublicId });

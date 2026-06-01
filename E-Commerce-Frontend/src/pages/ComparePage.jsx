@@ -27,6 +27,7 @@ export default function ComparePage() {
 
   const handleAddToCart = async (p) => {
     if (!user) { toast('Please sign in to add items to cart', 'error'); navigate('/login'); return; }
+    if (p.colors?.length) { navigate(`/product/${p._id || p.id}`); return; }
     const result = await addToCart(p._id || p.id, 1);
     if (result?.success === false) toast(result.error, 'error');
     else toast(`${p.name} added to cart`);

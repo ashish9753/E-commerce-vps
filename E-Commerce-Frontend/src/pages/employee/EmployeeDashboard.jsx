@@ -860,7 +860,9 @@ function OrdersTab({ onViewReturns }) {
                                   {item.title}
                                   {item.isFreebie && <span style={{ fontSize:9, fontWeight:800, letterSpacing:'.1em', color:C.green, background:C.green+'22', padding:'1px 6px', borderRadius:99 }}>FREE GIFT</span>}
                                 </div>
-                                <div style={{ fontSize:11, color:C.mute }}>Qty: {item.quantity}</div>
+                                <div style={{ fontSize:11, color:C.mute }}>
+                                  Qty: {item.quantity}{item.color ? ` · Color: ${item.color}` : ''}
+                                </div>
                               </div>
                               <span style={{ fontSize:13, fontWeight:700, color: item.isFreebie ? C.green : C.text, flexShrink:0 }}>
                                 {item.isFreebie || (item.price === 0) ? 'FREE' : fmtRs(item.price)}
@@ -1052,6 +1054,27 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
   const removeSpec = (i) => setSpecs(s => s.filter((_,j) => j !== i));
   const setSpec    = (i, field, val) => setSpecs(s => s.map((r,j) => j===i ? {...r,[field]:val} : r));
 
+  // ── Colors / Variants (each has its own image, price and stock) ──
+  // Pre-fill straight from initial.colors in edit mode (robust direct read).
+  const initColors = () => {
+    if (!isEditMode || !Array.isArray(initial?.colors)) return [];
+    return initial.colors.map(c => ({
+      name: c.name || '', image: c.image || '',
+      price: c.price ?? '', discountPrice: c.discountPrice ?? '', stock: c.stock ?? '',
+    }));
+  };
+  const [colors, setColors, clearColorsDraft] = useFormDraft('emp-product-colors', initColors(), !isEditMode);
+  // Master toggle: only when ON does the product use colors. Defaults ON in edit
+  // mode if the product already has colors; OFF otherwise (stays single-stock).
+  const [enableColors, setEnableColors] = useState(() => isEditMode && Array.isArray(initial?.colors) && initial.colors.length > 0);
+  const addColor    = () => setColors(cs => [...cs, { name:'', image:'', price:'', discountPrice:'', stock:'' }]);
+  const removeColor = (i) => setColors(cs => cs.filter((_, j) => j !== i));
+  const setColor    = (i, field, val) => setColors(cs => cs.map((c, j) => j === i ? { ...c, [field]: val } : c));
+  const toggleColors = (on) => { setEnableColors(on); if (on && colors.length === 0) addColor(); };
+  const colorRows   = colors.filter(c => c.name.trim());
+  const usingColors = enableColors && colorRows.length > 0;
+  const colorStockSum = colorRows.reduce((s, c) => s + (Number(c.stock) || 0), 0);
+
   // Edit mode: once this sub-category's attributes are known, pull any saved
   // attribute values into the attribute dropdowns and drop those keys from the
   // manual spec rows so they aren't shown (or saved) twice. Runs once.
@@ -1141,8 +1164,15 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
 
   /* â"€â"€ submit â"€â"€ */
   const handleSubmit = async () => {
-    if (!form.title||!form.description||!form.price||form.stock===''||!form.category) {
+    // When colors are enabled, the top-level stock is derived from them, so it
+    // isn't required directly — but at least one named color is.
+    const stockOk = usingColors || form.stock !== '';
+    if (!form.title||!form.description||!form.price||!stockOk||!form.category) {
       setError('Title, description, price, stock, and category are required.');
+      return;
+    }
+    if (enableColors && colorRows.length === 0) {
+      setError('Add at least one color (with a name), or turn off "different colors".');
       return;
     }
     if (showEmployeePicker && !form.employee) {
@@ -1176,9 +1206,19 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
         if (subAttrNames.has(k) && v && v.trim()) specObj[k] = v.trim();
       });
       if (Object.keys(specObj).length) fd.append('specifications', JSON.stringify(specObj));
+      // Colors / variants — always send (even empty) so removing colors / turning
+      // off the toggle persists. Empty when the "different colors" toggle is off.
+      const colorsPayload = usingColors ? colorRows.map(c => ({
+        name: c.name.trim(),
+        image: (c.image || '').trim(),
+        price: c.price === '' ? undefined : Number(c.price),
+        discountPrice: c.discountPrice === '' ? undefined : Number(c.discountPrice),
+        stock: Number(c.stock) || 0,
+      })) : [];
+      fd.append('colors', JSON.stringify(colorsPayload));
       await onSave(fd);
       // Clear draft only after successful save in create mode
-      if (!isEditMode) { clearFormDraft(); clearSpecsDraft(); clearParentDraft(); }
+      if (!isEditMode) { clearFormDraft(); clearSpecsDraft(); clearParentDraft(); clearColorsDraft(); }
     } catch(err) { setError(getErrorMessage(err)); }
     finally { setSaving(false); }
   };
@@ -1244,7 +1284,12 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
               {subcats.map(c=><option key={c._id} value={c._id}>{c.name}</option>)}
             </select>
           </div>
-          <div><label style={LS}>Stock *</label><input type="number" value={form.stock} onChange={e=>set('stock',e.target.value)} placeholder="0" style={inpStyle} /></div>
+          <div><label style={LS}>Stock *</label>
+            {usingColors
+              ? <input type="number" value={colorStockSum} disabled title="Auto-calculated from color stock" style={{ ...inpStyle, opacity:0.7, cursor:'not-allowed' }} />
+              : <input type="number" value={form.stock} onChange={e=>set('stock',e.target.value)} placeholder="0" style={inpStyle} />}
+            {usingColors && <div style={{ fontSize:11, color:C.mute, marginTop:4 }}>= sum of color stock</div>}
+          </div>
           <div>
             <label style={LS}>MRP (Rs.) *</label>
             <input type="number" value={form.price} onChange={e=>set('price',e.target.value)} placeholder="0" style={inpStyle} />
@@ -1284,6 +1329,43 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
               ))}
             </div>
           </>
+        )}
+
+        <SectionHead title="Colors / Variants" sub="Optional. Each color has its own image, price and stock. Customers must pick a color before ordering." />
+        <label style={{ display:'inline-flex', alignItems:'center', gap:9, padding:'9px 14px', borderRadius:8,
+          background: enableColors ? C.accent+'12' : C.bg, border:`1px solid ${enableColors ? C.accent+'55' : C.line}`,
+          cursor:'pointer', fontSize:13, fontWeight:600, color:C.text }}>
+          <input type="checkbox" checked={enableColors} onChange={e=>toggleColors(e.target.checked)} />
+          This product comes in different colors
+        </label>
+        {enableColors && (
+        <div style={{ display:'flex', flexDirection:'column', gap:10, marginTop:12 }}>
+          {colors.map((c, i) => (
+            <div key={i} style={{ display:'grid', gridTemplateColumns:'46px 1.2fr 2fr 1fr 1fr 1fr 32px', gap:8, alignItems:'center' }}>
+              <div style={{ width:46, height:46, borderRadius:8, border:`1px solid ${C.line}`, background:C.bg, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                {c.image
+                  ? <img src={toDirectImageUrl(c.image)} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} onError={e=>{ e.currentTarget.style.display='none'; }} />
+                  : <span style={{ fontSize:9, color:C.mute }}>img</span>}
+              </div>
+              <input value={c.name} onChange={e=>setColor(i,'name',e.target.value)} placeholder="Color name *" style={inpStyle} />
+              <input value={c.image} onChange={e=>setColor(i,'image',e.target.value)} placeholder="Image URL (Drive/any)" style={inpStyle} />
+              <input type="number" value={c.price} onChange={e=>setColor(i,'price',e.target.value)} placeholder="MRP" style={inpStyle} />
+              <input type="number" value={c.discountPrice} onChange={e=>setColor(i,'discountPrice',e.target.value)} placeholder="Sale" style={inpStyle} />
+              <input type="number" value={c.stock} onChange={e=>setColor(i,'stock',e.target.value)} placeholder="Stock" style={inpStyle} />
+              <button type="button" onClick={()=>removeColor(i)} title="Remove color"
+                style={{ width:32, height:32, borderRadius:8, border:`1px solid ${C.red}44`, background:C.red+'18', color:C.red, cursor:'pointer', fontSize:16, lineHeight:1 }}>×</button>
+            </div>
+          ))}
+          <button type="button" onClick={addColor}
+            style={{ alignSelf:'flex-start', padding:'7px 14px', borderRadius:8, border:`1px dashed ${C.line}`, background:C.bg, color:C.accent, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            + Add color
+          </button>
+          {colorRows.length > 0 && (
+            <div style={{ fontSize:11, color:C.mute }}>
+              {colorRows.length} color{colorRows.length !== 1 ? 's' : ''} · total stock {colorStockSum}. Leave a color's price blank to use the product's base price.
+            </div>
+          )}
+        </div>
         )}
 
         <SectionHead title="Product Specifications" sub="Key-value pairs shown in the spec table on the product page" />

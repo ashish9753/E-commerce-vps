@@ -78,7 +78,7 @@ export const getCouponById = async (req, res, next) => {
 
 export const updateCoupon = async (req, res, next) => {
   try {
-    // Whitelist updatable fields — prevents tampering with usedCount/usedBy/code.
+    // Whitelist updatable fields — usedCount/usedBy stay protected from tampering.
     const ALLOWED = [
       "discountType", "discountValue", "minimumAmount", "maximumDiscount",
       "expiryDate", "usageLimit", "visibility", "isActive",
@@ -88,6 +88,14 @@ export const updateCoupon = async (req, res, next) => {
     const updates = {};
     for (const k of ALLOWED) {
       if (req.body[k] !== undefined) updates[k] = req.body[k];
+    }
+    // The code can be renamed, but it's validated and must stay unique.
+    if (req.body.code !== undefined) {
+      const code = normalizeCouponCode(req.body.code);
+      if (!code) throw new ApiError(400, "Invalid coupon code — use 2–32 letters, numbers, _ or -");
+      const dup = await Coupon.findOne({ code, _id: { $ne: req.params.couponId } }).select("_id");
+      if (dup) throw new ApiError(409, `Coupon code "${code}" already exists`);
+      updates.code = code;
     }
     // Cross-field invariants when the type is being changed.
     if (updates.discountType === "FREEBIE") {

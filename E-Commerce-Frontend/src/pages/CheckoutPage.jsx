@@ -234,7 +234,8 @@ function OrderSummary({ items, subtotal, deliveryCharge, discountAmount, total, 
         </div>
         {items.map(item => {
           const product  = item.product || {};
-          const image    = product.images?.[0];
+          const colorObj = item.color && product.colors?.length ? product.colors.find(c => c.name === item.color) : null;
+          const image    = colorObj?.image || product.images?.[0];
           const title    = product.title || product.name || 'Product';
           const price    = item.price || product.discountPrice || product.price || 0;
           return (
@@ -251,6 +252,7 @@ function OrderSummary({ items, subtotal, deliveryCharge, discountAmount, total, 
                 <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.4, marginBottom: 3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                   {title}
                 </div>
+                {item.color && <div style={{ fontSize: 11, color: '#888', marginBottom: 2 }}>Color: <b style={{ color:'#333' }}>{item.color}</b></div>}
                 <div style={{ fontSize: 13, fontWeight: 700 }}>{formatPriceShort(price * item.quantity)}</div>
               </div>
             </div>
@@ -326,7 +328,7 @@ export default function CheckoutPage() {
     let cancelled = false;
     couponsApi.validate({
       code: buyNowCouponCode,
-      directItem: { productId: buyNow.productId, quantity: buyNow.quantity },
+      directItem: { productId: buyNow.productId, quantity: buyNow.quantity, color: buyNow.color || '' },
     })
       .then(({ data }) => {
         if (cancelled) return;
@@ -365,7 +367,7 @@ export default function CheckoutPage() {
 
   // Buy-now: synthetic display items + totals (bypasses cart entirely)
   const checkoutItems    = buyNow
-    ? [{ _id: 'buy-now', product: { _id: buyNow.productId, title: buyNow.title, images: buyNow.image ? [buyNow.image] : [] }, quantity: buyNow.quantity, price: buyNow.price }]
+    ? [{ _id: 'buy-now', product: { _id: buyNow.productId, title: buyNow.title, images: buyNow.image ? [buyNow.image] : [] }, quantity: buyNow.quantity, price: buyNow.price, color: buyNow.color || '' }]
     : items;
   const checkoutSubtotal = buyNow ? buyNow.price * buyNow.quantity : subtotal;
   // Resolve the actual delivery charge in priority order:
@@ -387,7 +389,7 @@ export default function CheckoutPage() {
     : Math.max(0, checkoutSubtotal + checkoutDelivery - checkoutDiscount);
   // Extra payload fields forwarded to every placeOrder call when buy-now
   const buyNowExtra      = buyNow
-    ? { useCart: false, directItem: { productId: buyNow.productId, quantity: buyNow.quantity }, couponCode: buyNowCouponCode || undefined }
+    ? { useCart: false, directItem: { productId: buyNow.productId, quantity: buyNow.quantity, color: buyNow.color || '' }, couponCode: buyNowCouponCode || undefined }
     : {};
 
   useEffect(() => {
@@ -1130,7 +1132,8 @@ export default function CheckoutPage() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#333', marginBottom: 14 }}>Items ordered:</div>
                   {checkoutItems.map(item => {
                     const product = item.product || {};
-                    const image   = product.images?.[0];
+                    const colorObj = item.color && product.colors?.length ? product.colors.find(c => c.name === item.color) : null;
+                    const image   = colorObj?.image || product.images?.[0];
                     const title   = product.title || product.name || 'Product';
                     const price   = item.price || product.discountPrice || product.price || 0;
                     return (

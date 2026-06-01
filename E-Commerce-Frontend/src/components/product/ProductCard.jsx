@@ -20,6 +20,9 @@ export default function ProductCard({ product }) {
   const handleAddToCart = async (e) => {
     e.stopPropagation();
     if (!user) { toast('Please sign in to add items to cart', 'error'); navigate('/login'); return; }
+    // Products with colors require the customer to pick one — send them to the
+    // product page to choose instead of adding a color-less line.
+    if (product.colors?.length) { navigate(`/product/${productId}`); return; }
     const result = await addToCart(productId, 1);
     if (result?.success === false) toast(result.error, 'error');
     else toast(`${product.name} added to cart`);

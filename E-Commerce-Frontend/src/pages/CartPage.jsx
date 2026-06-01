@@ -58,7 +58,7 @@ export default function CartPage() {
   const handleSaveForLater = async (item) => {
     const product = item.product;
     await toggle(product);
-    await removeFromCartNow(product._id); // must persist immediately
+    await removeFromCartNow(product._id, item.color); // must persist immediately
     toast('Moved to wishlist');
   };
 
@@ -69,7 +69,10 @@ export default function CartPage() {
     setSyncing(false);
 
     const issues = freshItems.filter(i => {
-      const stock = i.product?.stock ?? Infinity;
+      const p = i.product;
+      const stock = (i.color && p?.colors?.length)
+        ? (p.colors.find(c => c.name === i.color)?.stock ?? 0)
+        : (p?.stock ?? Infinity);
       return i.quantity > stock;
     });
 
@@ -101,10 +104,16 @@ export default function CartPage() {
         <div>
           {items.map(item => {
             const product = item.product || {};
-            const image = product.images?.[0];
+            // For a colored line, the swatch image + available stock come from
+            // the chosen color; fall back to the product otherwise.
+            const colorObj = item.color && product.colors?.length
+              ? product.colors.find(c => c.name === item.color)
+              : null;
+            const image = colorObj?.image || product.images?.[0];
             const title = product.title || product.name || 'Product';
             const brand = product.brand || '';
             const itemPrice = item.price || product.discountPrice || product.price || 0;
+            const lineStock = product.colors?.length ? (colorObj?.stock ?? 0) : (product.stock ?? Infinity);
             const hasIssue = stockIssues.includes(product._id);
 
             return (
@@ -123,36 +132,42 @@ export default function CartPage() {
                       <div className="text-[11px] text-soft font-semibold tracking-wider uppercase">{brand}</div>
                       <div className="text-base font-bold tracking-tight mt-1 leading-snug cursor-pointer hover:text-accent hover:underline transition-colors"
                         onClick={() => product._id && navigate(`/product/${product._id}`)}>{title}</div>
+                      {item.color && (
+                        <div className="text-xs text-mute mt-1 flex items-center gap-1.5">
+                          {colorObj?.image && <img src={colorObj.image} alt="" className="w-4 h-4 rounded-full object-cover border border-line" />}
+                          Color: <span className="font-semibold text-ink">{item.color}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="sm:hidden text-base font-bold tracking-tight shrink-0 mt-0.5">{formatPriceShort(itemPrice * item.quantity)}</div>
                   </div>
                   <div className="flex flex-wrap gap-x-3 gap-y-2 mt-3 text-xs items-center">
                     <div className="flex items-center border-[1.5px] border-line-2 rounded-full h-9">
-                      <button className="w-10.5 h-9 text-lg bg-transparent border-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-mute hover:enabled:text-ink cursor-pointer" disabled={item.quantity <= 1} onClick={() => { updateQty(product._id, item.quantity - 1); setStockIssues([]); }}>−</button>
+                      <button className="w-10.5 h-9 text-lg bg-transparent border-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-mute hover:enabled:text-ink cursor-pointer" disabled={item.quantity <= 1} onClick={() => { updateQty(product._id, item.color, item.quantity - 1); setStockIssues([]); }}>−</button>
                       <span className="w-8 text-center font-bold">{item.quantity}</span>
                       <button
                         className="w-10.5 h-9 text-lg bg-transparent border-0 transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-mute hover:enabled:text-ink cursor-pointer"
-                        onClick={() => { updateQty(product._id, item.quantity + 1); setStockIssues([]); }}
-                        disabled={item.quantity >= (product.stock ?? Infinity)}
-                        title={item.quantity >= (product.stock ?? Infinity) ? `Only ${product.stock} available` : ''}
+                        onClick={() => { updateQty(product._id, item.color, item.quantity + 1); setStockIssues([]); }}
+                        disabled={item.quantity >= lineStock}
+                        title={item.quantity >= lineStock ? `Only ${lineStock} available` : ''}
                       >+</button>
                     </div>
                     <button className="text-mute font-semibold flex items-center gap-1.25 bg-transparent border-0 cursor-pointer hover:text-accent" onClick={() => handleSaveForLater(item)}>
                       <Heart size={13} /> Save for later
                     </button>
-                    <button className="text-mute font-semibold flex items-center gap-1.25 bg-transparent border-0 cursor-pointer hover:text-accent" onClick={() => { removeFromCart(product._id); setStockIssues([]); toast('Item removed'); }}>
+                    <button className="text-mute font-semibold flex items-center gap-1.25 bg-transparent border-0 cursor-pointer hover:text-accent" onClick={() => { removeFromCart(product._id, item.color); setStockIssues([]); toast('Item removed'); }}>
                       <Trash2 size={13} /> Remove
                     </button>
                   </div>
                   {hasIssue && (() => {
-                    const stock = product.stock ?? 0;
+                    const stock = lineStock === Infinity ? 0 : lineStock;
                     return (
                       <div className="mt-2.5 flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                         <span className="font-bold">Only {stock} available.</span>
                         <span>Please reduce quantity.</span>
                         <button
                           className="ml-auto font-bold underline bg-transparent border-0 cursor-pointer text-red-600"
-                          onClick={() => { updateQty(product._id, stock); setStockIssues(p => p.filter(id => id !== product._id)); }}
+                          onClick={() => { updateQty(product._id, item.color, stock); setStockIssues(p => p.filter(id => id !== product._id)); }}
                         >Fix</button>
                       </div>
                     );

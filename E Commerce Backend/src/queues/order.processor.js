@@ -59,21 +59,35 @@ export const processOrderJob = async (job) => {
   try {
     // --- Step 1: Stock check + decrement ---
     for (const item of orderItems) {
-      const product = await Product.findOneAndUpdate(
-        { _id: item.product, stock: { $gte: item.quantity }, isDeleted: false, isPublished: true },
-        { $inc: { stock: -item.quantity, sold: item.quantity } },
-        so({ new: true })
-      );
+      // For a colored line, atomically verify + decrement THAT color's stock
+      // (via $elemMatch + arrayFilters) and keep the summed top-level stock in
+      // sync. Color-less lines decrement the top-level stock as before.
+      const inc = { sold: item.quantity, stock: -item.quantity };
+      const filter = { _id: item.product, isDeleted: false, isPublished: true };
+      const opts = { new: true };
+      if (item.color) {
+        filter.colors = { $elemMatch: { name: item.color, stock: { $gte: item.quantity } } };
+        inc["colors.$[c].stock"] = -item.quantity;
+        opts.arrayFilters = [{ "c.name": item.color }];
+      } else {
+        filter.stock = { $gte: item.quantity };
+      }
+
+      const product = await Product.findOneAndUpdate(filter, { $inc: inc }, so(opts));
 
       if (!product) {
         const outOfStock = await Product.findById(item.product);
+        const colorLabel = item.color ? ` (${item.color})` : "";
+        const avail = item.color
+          ? (outOfStock?.colors?.find((c) => c.name === item.color)?.stock ?? 0)
+          : (outOfStock?.stock ?? 0);
         const reason = !outOfStock || outOfStock.isDeleted
           ? `Product "${item.title}" is no longer available`
-          : `"${item.title}" is out of stock. Available: ${outOfStock.stock}, Requested: ${item.quantity}`;
+          : `"${item.title}"${colorLabel} is out of stock. Available: ${avail}, Requested: ${item.quantity}`;
         throw new Error(reason);
       }
 
-      decremented.push({ product, quantity: item.quantity, oldStock: product.stock + item.quantity });
+      decremented.push({ product, quantity: item.quantity, color: item.color || "", oldStock: product.stock + item.quantity });
     }
 
     // --- Step 2: Create Order ---
@@ -245,12 +259,15 @@ export const processOrderJob = async (job) => {
       // be reconciled rather than silently swallowing it.
       try {
         await Product.bulkWrite(
-          decremented.map(({ product, quantity }) => ({
-            updateOne: {
-              filter: { _id: product._id },
-              update: { $inc: { stock: quantity, sold: -quantity } },
-            },
-          }))
+          decremented.map(({ product, quantity, color }) => {
+            const update = { $inc: { stock: quantity, sold: -quantity } };
+            const op = { updateOne: { filter: { _id: product._id }, update } };
+            if (color) {
+              update.$inc["colors.$[c].stock"] = quantity;
+              op.updateOne.arrayFilters = [{ "c.name": color }];
+            }
+            return op;
+          })
         );
       } catch (rollbackErr) {
         console.error(

@@ -1,6 +1,7 @@
 import ReturnRequest from "../models/returnRequest.model.js";
 import Order         from "../models/order.model.js";
 import Product       from "../models/product.model.js";
+import { buildRestockOps } from "../utils/color.utils.js";
 import Employee      from "../models/employee.model.js";
 import InventoryLog  from "../models/inventoryLog.model.js";
 import User          from "../models/user.model.js";
@@ -301,13 +302,9 @@ export const employeeActionOnReturn = async (req, res, next) => {
     const employee = await Employee.findOne({ user: req.user._id });
     if (!employee) throw new ApiError(403, "Employee profile not found");
 
-    const employeeProducts = await Product.find({ employee: employee._id }).select("_id");
-    const employeeProductIds = employeeProducts.map(p => p._id);
-
-    const returnReq = await ReturnRequest.findOne({
-      _id: req.params.requestId,
-      $or: [{ employee: employee._id }, { product: { $in: employeeProductIds } }],
-    });
+    // Returns are a shared queue — any employee can action any request, not just
+    // the one who owns the product. Look the request up by id alone.
+    const returnReq = await ReturnRequest.findById(req.params.requestId);
     if (!returnReq) throw new ApiError(404, "Return request not found");
     // Employee can act on REQUESTED or re-act if admin sends back (REQUESTED only for now)
     if (!["REQUESTED"].includes(returnReq.status)) {
@@ -357,13 +354,8 @@ export const employeeAdvanceReturn = async (req, res, next) => {
     const employee = await Employee.findOne({ user: req.user._id });
     if (!employee) throw new ApiError(403, "Employee profile not found");
 
-    const employeeProducts = await Product.find({ employee: employee._id }).select("_id");
-    const employeeProductIds = employeeProducts.map(p => p._id);
-
-    const returnReq = await ReturnRequest.findOne({
-      _id: req.params.requestId,
-      $or: [{ employee: employee._id }, { product: { $in: employeeProductIds } }],
-    });
+    // Returns are a shared queue — any employee can advance any request.
+    const returnReq = await ReturnRequest.findById(req.params.requestId);
     if (!returnReq) throw new ApiError(404, "Return request not found");
 
     const pipeline = {
@@ -384,14 +376,7 @@ export const employeeAdvanceReturn = async (req, res, next) => {
     if (nextStatus === "ITEM_RECEIVED") {
       const populatedOrder = await Order.findById(returnReq.order);
       if (populatedOrder) {
-        await Product.bulkWrite(
-          populatedOrder.orderItems.map(item => ({
-            updateOne: {
-              filter: { _id: item.product },
-              update: { $inc: { stock: item.quantity, sold: -item.quantity } },
-            },
-          }))
-        );
+        await Product.bulkWrite(buildRestockOps(populatedOrder.orderItems));
         await Order.findByIdAndUpdate(returnReq.order, {
           refundStatus: "PROCESSING",
           refundAmount: returnReq.refundAmount,
@@ -511,14 +496,7 @@ export const processReturnRequest = async (req, res, next) => {
       const stockBefore = await Product.find({ _id: { $in: itemProductIds } }).select("stock").lean();
       const stockMap = Object.fromEntries(stockBefore.map(p => [p._id.toString(), p.stock]));
 
-      await Product.bulkWrite(
-        returnReq.order.orderItems.map(item => ({
-          updateOne: {
-            filter: { _id: item.product },
-            update: { $inc: { stock: item.quantity, sold: -item.quantity } },
-          },
-        }))
-      );
+      await Product.bulkWrite(buildRestockOps(returnReq.order.orderItems));
 
       await InventoryLog.insertMany(
         returnReq.order.orderItems.map(item => {

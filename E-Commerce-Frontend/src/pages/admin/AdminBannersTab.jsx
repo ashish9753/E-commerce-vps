@@ -186,10 +186,8 @@ export default function AdminBannersTab() {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!draft.title.trim()) { fireToast('Title is required'); return; }
-    if (!editingId && !file && !isHttpUrl(draft.imageUrl)) {
-      fireToast('Add a banner image — upload a file or paste an image URL'); return;
-    }
+    // Nothing is mandatory. Only guard against a clearly malformed URL the user
+    // actually typed — an empty form is allowed to submit.
     if (draft.imageUrl.trim() && !file && !isHttpUrl(draft.imageUrl)) {
       fireToast('That image URL looks invalid — use a full http(s) link'); return;
     }
@@ -251,7 +249,7 @@ export default function AdminBannersTab() {
 
         <form onSubmit={submit} style={{ marginTop:16, display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
           <div style={{ gridColumn:'1/-1' }}>
-            <Field label="Banner Image *" hint="JPEG/PNG/WebP, max 2 MB. Recommended ~1200×400">
+            <Field label="Banner Image" hint="JPEG/PNG/WebP, max 2 MB. Recommended ~1200×400">
               <div
                 onClick={() => fileRef.current?.click()}
                 style={{ display:'flex', gap:12, alignItems:'center', padding:'10px 12px', border:`1px dashed ${C.line}`, borderRadius:8, cursor:'pointer', background:C.bg }}
@@ -282,8 +280,8 @@ export default function AdminBannersTab() {
             </div>
           </div>
 
-          <Field label="Title *">
-            <input value={draft.title} onChange={e => set('title', e.target.value)} placeholder="Big Tech Carnival" style={inpStyle()} required />
+          <Field label="Title">
+            <input value={draft.title} onChange={e => set('title', e.target.value)} placeholder="Big Tech Carnival" style={inpStyle()} />
           </Field>
           <Field label="Subtitle" hint="optional, shown under the title">
             <input value={draft.subtitle} onChange={e => set('subtitle', e.target.value)} placeholder="Smartphones & audio essentials" style={inpStyle()} />

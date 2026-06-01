@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const bannerSchema = new mongoose.Schema(
   {
-    title:          { type: String, required: true },
+    title:          String,
     subtitle:       String,
     overlayText:    String,
     ctaLabel:       { type: String, default: "Shop Now" },
@@ -12,7 +12,7 @@ const bannerSchema = new mongoose.Schema(
     fontSize:       { type: Number, default: 48, min: 12, max: 120 },
     fontWeight:     { type: String, default: "800" },
     fontStyle:      { type: String, enum: ["normal", "italic"], default: "normal" },
-    image:          { type: String, required: true },
+    image:          String,
     imagePublicId:  String,
     link:           String,
     product:        { type: mongoose.Schema.Types.ObjectId, ref: "Product" },

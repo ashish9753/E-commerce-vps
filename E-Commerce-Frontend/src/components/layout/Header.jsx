@@ -15,6 +15,7 @@ import {
   Tags,
   Monitor,
   WashingMachine,
+  Camera,
 } from 'lucide-react';
 import SupportIcon from '../icons/SupportIcon';
 import { useCart } from '../../context/CartContext';
@@ -210,6 +211,24 @@ export default function Header() {
     setMobileOpen(false);
     navigate(path);
     window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  // Smooth-scroll to the "Social Footprints" section on the home page. If we're
+  // on another route, go home first, then scroll once the section mounts (it
+  // loads its media async, so we retry briefly until the anchor exists).
+  const goToSocial = () => {
+    setMobileOpen(false);
+    const scrollToSocial = (tries = 0) => {
+      const el = document.getElementById('social-footprints');
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      if (tries < 20) setTimeout(() => scrollToSocial(tries + 1), 150);
+    };
+    if (window.location.pathname === '/') {
+      scrollToSocial();
+    } else {
+      navigate('/');
+      setTimeout(() => scrollToSocial(), 250); // let Home mount + ScrollToTop run first
+    }
   };
   const searchRef = useRef(null);
   const bellRef   = useRef(null);
@@ -470,8 +489,9 @@ export default function Header() {
                   { label: 'Flash Sale',      path: '/products?onSale=true&sort=price_asc' },
                   { label: 'New Arrivals',    path: '/products?sort=newest' },
                   { label: 'Top Selling',     path: '/products?sort=popular' },
+                  { label: 'Social',          onClick: goToSocial },
                 ].map(item => (
-                  <button key={item.label} onClick={() => navigate(item.path)}
+                  <button key={item.label} onClick={() => (item.onClick ? item.onClick() : navigate(item.path))}
                     style={{ background: 'none', border: 'none', color: '#d1d5db', fontSize: 13, fontWeight: 500,
                       cursor: 'pointer', padding: '0 14px', height: 44, whiteSpace: 'nowrap', flexShrink: 0,
                       borderBottom: '2px solid transparent', transition: 'all .15s' }}
@@ -678,13 +698,14 @@ export default function Header() {
               { label: 'Flash Sale',      icon: Zap,          path: '/products?onSale=true&sort=price_asc',    color: '#fb923c' },
               { label: 'New Arrivals',    icon: Sparkles,     path: '/products?sort=newest',                   color: '#60a5fa' },
               { label: 'Top Selling',     icon: Flame,        path: '/products?sort=popular',                  color: '#f97316' },
+              { label: 'Social',          icon: Camera,       onClick: goToSocial,                             color: '#ec4899' },
             ].map(item => {
               const Icon = item.icon;
               return (
               <button
                 key={item.label}
                 type="button"
-                onClick={() => navTo(item.path)}
+                onClick={() => (item.onClick ? item.onClick() : navTo(item.path))}
                 className="te-drawer-item"
               >
                 <span className="te-drawer-itemicon" style={{ color: item.color }} aria-hidden="true">

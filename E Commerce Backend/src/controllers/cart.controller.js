@@ -3,6 +3,7 @@ import Product from "../models/product.model.js";
 import Coupon from "../models/coupon.model.js";
 import { validateCouponAudience } from "../utils/couponAudience.utils.js";
 import { computeCouponEligibility } from "../utils/couponEligibility.utils.js";
+import { resolveColor } from "../utils/color.utils.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 
@@ -52,13 +53,13 @@ const getOrCreateCart = async (userId) => {
 // Fields the cart UI needs for each line item. Keep in sync with getCart so
 // that mutation responses (add/update/remove) carry the same populated shape
 // the frontend already has — otherwise setCart() would wipe images/titles.
-const CART_PRODUCT_SELECT = "title price discountPrice images stock isDeleted isPublished brand category";
+const CART_PRODUCT_SELECT = "title price discountPrice images stock colors isDeleted isPublished brand category";
 
 export const getCart = async (req, res, next) => {
   try {
     const cart = await Cart.findOne({ user: req.user._id }).populate({
       path: "items.product",
-      select: "title price discountPrice images stock isDeleted isPublished brand category",
+      select: "title price discountPrice images stock colors isDeleted isPublished brand category",
     }).populate({
       path: "coupon",
       select: "code discountType discountValue applicableBrands applicableCategories applicableSubcategories freebieProduct freebieQuantity",
@@ -82,22 +83,36 @@ export const getCart = async (req, res, next) => {
 
 export const addToCart = async (req, res, next) => {
   try {
-    const { productId, quantity = 1 } = req.body;
+    const { productId, quantity = 1, color = "" } = req.body;
     if (!productId) throw new ApiError(400, "productId is required");
 
     const qty = Math.max(1, parseInt(quantity));
     const product = await Product.findOne({ _id: productId, isDeleted: false, isPublished: true });
     if (!product) throw new ApiError(404, "Product not found");
-    if (product.stock === 0) throw new ApiError(400, "This product is out of stock");
 
-    const price = product.discountPrice || product.price;
+    const resolved = resolveColor(product, color);
+    if (!resolved) throw new ApiError(400, "Please select a valid color for this product");
+    if (resolved.stock <= 0) {
+      throw new ApiError(400, resolved.color ? `Color "${resolved.color}" is out of stock` : "This product is out of stock");
+    }
+
+    const price = resolved.price;
+    const lineColor = resolved.color;
     const cart = await getOrCreateCart(req.user._id);
 
-    const existingIndex = cart.items.findIndex((i) => i.product.toString() === productId);
+    // A cart line is identified by product + color, so red and blue of the same
+    // product are separate lines.
+    const existingIndex = cart.items.findIndex(
+      (i) => i.product.toString() === productId && (i.color || "") === lineColor
+    );
     if (existingIndex > -1) {
-      cart.items[existingIndex].quantity += qty;
+      const newQty = cart.items[existingIndex].quantity + qty;
+      if (newQty > resolved.stock) throw new ApiError(400, `Only ${resolved.stock} in stock`);
+      cart.items[existingIndex].quantity = newQty;
+      cart.items[existingIndex].price = price;
     } else {
-      cart.items.push({ product: productId, quantity: qty, price });
+      if (qty > resolved.stock) throw new ApiError(400, `Only ${resolved.stock} in stock`);
+      cart.items.push({ product: productId, quantity: qty, price, color: lineColor });
     }
 
     cart.recalculate();
@@ -112,7 +127,7 @@ export const addToCart = async (req, res, next) => {
 
 export const updateCartItem = async (req, res, next) => {
   try {
-    const { productId, quantity } = req.body;
+    const { productId, quantity, color = "" } = req.body;
     const qty = parseInt(quantity);
     if (!productId || qty < 1) throw new ApiError(400, "Valid productId and quantity required");
 
@@ -122,8 +137,13 @@ export const updateCartItem = async (req, res, next) => {
     const cart = await Cart.findOne({ user: req.user._id });
     if (!cart) throw new ApiError(404, "Cart not found");
 
-    const item = cart.items.find((i) => i.product.toString() === productId);
+    const item = cart.items.find((i) => i.product.toString() === productId && (i.color || "") === color);
     if (!item) throw new ApiError(404, "Item not in cart");
+
+    // Clamp to the selected color's (or product's) available stock.
+    const resolved = resolveColor(product, color);
+    const avail = resolved ? resolved.stock : (product.stock ?? 0);
+    if (qty > avail) throw new ApiError(400, `Only ${avail} in stock`);
 
     item.quantity = qty;
     cart.recalculate();
@@ -139,10 +159,11 @@ export const updateCartItem = async (req, res, next) => {
 export const removeFromCart = async (req, res, next) => {
   try {
     const { productId } = req.params;
+    const color = req.query.color || "";
     const cart = await Cart.findOne({ user: req.user._id });
     if (!cart) throw new ApiError(404, "Cart not found");
 
-    cart.items = cart.items.filter((i) => i.product.toString() !== productId);
+    cart.items = cart.items.filter((i) => !(i.product.toString() === productId && (i.color || "") === color));
     cart.recalculate();
     await cart.save();
     await cart.populate("items.product", CART_PRODUCT_SELECT);

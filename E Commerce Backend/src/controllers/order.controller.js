@@ -10,6 +10,7 @@ import { notify, notifyEmployee, notifyAdmins } from "../utils/notify.js";
 import { sendEmail, orderConfirmationEmail } from "../utils/email.utils.js";
 import { getPaginationData, buildPaginatedResponse } from "../utils/pagination.utils.js";
 import { validateCouponAudience } from "../utils/couponAudience.utils.js";
+import { resolveColor, buildRestockOps } from "../utils/color.utils.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { uploadToCloudinary } from "../utils/cloudinary.utils.js";
@@ -195,7 +196,7 @@ export const placeOrder = async (req, res, next) => {
       if (!Number.isFinite(qty) || qty < 1 || qty > 50) {
         throw new ApiError(400, "Quantity must be between 1 and 50");
       }
-      rawItems = [{ product: directItem.productId, quantity: qty }];
+      rawItems = [{ product: directItem.productId, quantity: qty, color: directItem.color || "" }];
     }
 
     // Build order items with current prices.
@@ -210,19 +211,27 @@ export const placeOrder = async (req, res, next) => {
       const productId = item.product._id || item.product;
       const product = await Product.findOne({ _id: productId, isDeleted: false, isPublished: true });
       if (!product) throw new ApiError(404, `Product ${productId} not found`);
-      if (product.stock < item.quantity) {
-        throw new ApiError(400, `"${product.title}" — only ${product.stock} units in stock`);
+
+      // Resolve the chosen color (required for colored products) — drives the
+      // price, stock check and the image/colorImage stored on the line.
+      const resolved = resolveColor(product, item.color || "");
+      if (!resolved) throw new ApiError(400, `Please select a valid color for "${product.title}"`);
+      const colorLabel = resolved.color ? ` (${resolved.color})` : "";
+      if (resolved.stock < item.quantity) {
+        throw new ApiError(400, `"${product.title}"${colorLabel} — only ${resolved.stock} units in stock`);
       }
 
-      const price = product.discountPrice || product.price;
+      const price = resolved.price;
       const itemTotal = price * item.quantity;
       itemsPrice += itemTotal;
       orderItems.push({
         product: product._id,
         title: product.title,
-        image: product.images[0] || "",
+        image: resolved.image || product.images[0] || "",
         quantity: item.quantity,
         price,
+        color: resolved.color,
+        colorImage: resolved.color ? resolved.image : "",
       });
       itemsForCoupon.push({
         product: { brand: product.brand, category: product.category },
@@ -536,14 +545,7 @@ export const cancelOrder = async (req, res, next) => {
     const productDocs = await Product.find({ _id: { $in: productIds } }).select("employee").lean();
     const employeeIds = new Set(productDocs.filter(p => p.employee).map(p => p.employee.toString()));
 
-    await Product.bulkWrite(
-      order.orderItems.map(item => ({
-        updateOne: {
-          filter: { _id: item.product },
-          update: { $inc: { stock: item.quantity, sold: -item.quantity } },
-        },
-      }))
-    );
+    await Product.bulkWrite(buildRestockOps(order.orderItems));
 
     // Build refund message for customer notification
     let refundMsg = "";

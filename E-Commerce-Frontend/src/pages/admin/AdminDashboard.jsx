@@ -685,7 +685,7 @@ function UserDetailModal({ user, onClose }) {
                       <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 8 }}>
                         {(order.orderItems || []).map((item, idx) => (
                           <div key={idx} style={{ fontSize: 12, color: C.mute, marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
-                            <span>• {item.title} × {item.quantity}</span>
+                            <span>• {item.title}{item.color ? ` (${item.color})` : ''} × {item.quantity}</span>
                             <span>Rs. {Number((item.price || 0) * item.quantity).toLocaleString('en-IN')}</span>
                           </div>
                         ))}
@@ -1910,7 +1910,9 @@ function OrdersTab({ globalSearch = '' }) {
                                     {item.title}
                                     {item.isFreebie && <span style={{ fontSize:9, fontWeight:800, letterSpacing:'.1em', color:C.green, background:C.green+'22', padding:'1px 6px', borderRadius:99 }}>FREE GIFT</span>}
                                   </div>
-                                  <div style={{ fontSize:11, color:C.mute }}>Qty: {item.quantity}</div>
+                                  <div style={{ fontSize:11, color:C.mute }}>
+                                    Qty: {item.quantity}{item.color ? ` · Color: ${item.color}` : ''}
+                                  </div>
                                 </div>
                                 <span style={{ fontSize:13, fontWeight:700, color: item.isFreebie ? C.green : C.text, flexShrink:0 }}>
                                   {item.isFreebie || (item.price === 0) ? 'FREE' : fmtRs(item.price)}

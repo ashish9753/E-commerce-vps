@@ -238,7 +238,7 @@ export async function generateInvoice(order, user) {
 
     return [
       { content: String(i + 1), styles: cellStyle },
-      { content: item.title,    styles: cellStyle },
+      { content: item.color ? `${item.title}\nColor: ${item.color}` : item.title, styles: cellStyle },
       { content: String(item.quantity), styles: { ...cellStyle, halign: "center" } },
       { content: fmtRs(item.price),     styles: { ...cellStyle, halign: "right" } },
       { content: fmtRs(lineTotal),      styles: { ...cellStyle, halign: "right" } },

@@ -375,7 +375,7 @@ function CategoriesSection({ onMutate }) {
             </div>
             {draft.imageUrl.trim() && (
               <div style={{ width: 44, height: 44, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, marginTop: 18 }}>
-                <img src={draft.imageUrl.trim()} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                <img src={toDirectImageUrl(draft.imageUrl.trim())} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                   onError={e => { e.currentTarget.style.display = 'none'; }} />
               </div>
             )}
@@ -401,7 +401,7 @@ function CategoriesSection({ onMutate }) {
                     <div style={{ width: 40, height: 40, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                       {editDraft.imageUrl
-                        ? <img src={editDraft.imageUrl} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
+                        ? <img src={toDirectImageUrl(editDraft.imageUrl)} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
                         : <span style={{ fontWeight: 800, fontSize: 15, color: C.accent }}>{(editDraft.name || '?').charAt(0).toUpperCase()}</span>}
                     </div>
                   </td>
@@ -431,7 +431,7 @@ function CategoriesSection({ onMutate }) {
                     <div style={{ width: 40, height: 40, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                       {c.image
-                        ? <img src={c.image} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ? <img src={toDirectImageUrl(c.image)} alt={c.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <span style={{ fontWeight: 800, fontSize: 15, color: C.accent }}>{c.name.charAt(0).toUpperCase()}</span>}
                     </div>
                   </td>

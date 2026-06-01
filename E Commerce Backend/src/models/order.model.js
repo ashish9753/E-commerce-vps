@@ -6,6 +6,9 @@ const orderItemSchema = new mongoose.Schema({
   image: String,
   quantity: Number,
   price: Number,
+  // Selected color/variant for this line (empty for color-less products).
+  color: { type: String, default: "" },
+  colorImage: { type: String, default: "" },
   // True when this line was added by a FREEBIE coupon (price will be 0).
   isFreebie: { type: Boolean, default: false },
 }, { _id: false });

@@ -20,6 +20,7 @@ export function normalizeProduct(p) {
     title: p.title || p.name || '',
     brand: p.brand || '',
     sku: p.sku || '',
+    colors: Array.isArray(p.colors) ? p.colors : [],
     category: categoryName,
     categoryObj: typeof p.category === 'object' ? p.category : null,
     price,
