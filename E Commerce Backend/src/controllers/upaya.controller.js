@@ -18,13 +18,21 @@ const normaliseLocations = (raw) => {
       : Array.isArray(raw?.data)
         ? raw.data
         : [];
-  return list.map((l) => ({
-    locationId:   l.locationId   ?? l.location_id ?? l.id,
-    locationName: l.locationName ?? l.location_name ?? l.name,
-    address:      l.address      ?? "",
-    areaId:       l.areaId       ?? l.area_id ?? null,
-    raw: l,
-  }));
+  return list
+    .map((l) => ({
+      locationId:   l.locationId   ?? l.location_id ?? l.id,
+      locationName: l.locationName ?? l.location_name ?? l.name,
+      address:      l.address      ?? "",
+      areaId:       l.areaId       ?? l.area_id ?? null,
+      raw: l,
+    }))
+    // Upaya returns areas in an arbitrary order, which is painful to scan in a
+    // dropdown. Sort alphabetically by name (case-insensitive) so customers and
+    // staff can find a location quickly. Same list feeds checkout, profile
+    // addresses, and the admin/employee delivery-area pickers.
+    .sort((a, b) =>
+      (a.locationName || "").localeCompare(b.locationName || "", undefined, { sensitivity: "base" })
+    );
 };
 
 export const getLocations = async (req, res, next) => {
