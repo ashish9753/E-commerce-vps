@@ -409,38 +409,112 @@ function HeroMyntraStyle({ banners = [] }) {
   );
 }
 
-function RisingStars({ products }) {
+function HotDeals({ products }) {
   const navigate = useNavigate();
-  const items = products.slice(0, 15);
+  // Real "hot deals": only discounted items, biggest discount first. Falls back
+  // to whatever we have if nothing is on sale, so the section is never empty
+  // when there are products to show.
+  const onSale = products.filter((p) => p.off > 0).sort((a, b) => b.off - a.off);
+  const items = (onSale.length ? onSale : products).slice(0, 15);
   if (!items.length) return null;
 
   return (
-    <section>
-      <SectionHeader title="Rising Stars" link="/products?sort=popular" />
-      <div className="myn-brand-row">
+    <section className="hd">
+      <div className="hd-head">
+        <div className="hd-head-left">
+          <span className="hd-flame" aria-hidden="true">🔥</span>
+          <div>
+            <h2 className="hd-title">Hot Deals</h2>
+            <p className="hd-sub">Biggest discounts, limited stock — grab them before they're gone</p>
+          </div>
+        </div>
+        <button className="hd-viewall" onClick={() => navigate('/products?onSale=true&sort=price_asc')}>
+          View All →
+        </button>
+      </div>
+
+      <div className="hd-row">
         {items.map((product) => (
-          <button className="myn-star-card" key={product._id} onClick={() => navigate(`/product/${product._id}`)}>
-            <div className="myn-star-img">
+          <button className="hd-card" key={product._id} onClick={() => navigate(`/product/${product._id}`)}>
+            {product.off > 0 && <div className="hd-badge">{product.off}% OFF</div>}
+            <div className="hd-img">
               {getProductImage(product) ? (
-                <img src={getProductImage(product)} alt={product.name} />
+                <img src={getProductImage(product)} alt={product.name} draggable={false} />
               ) : (
-                <PackageCheck size={58} />
+                <PackageCheck size={54} />
               )}
             </div>
-            <div className="myn-star-offer">
-              <span>{product.brand || product.category || 'Featured Pick'}</span>
-              <p>{product.name}</p>
-              {product.price > 0 && (
-                <div className="myn-star-price">
-                  {fmtPrice(product.price)}
-                  {product.was > product.price && <s>{fmtPrice(product.was)}</s>}
-                </div>
+            <div className="hd-info">
+              <span className="hd-brand">{product.brand || product.category || 'Featured'}</span>
+              <p className="hd-name">{product.name}</p>
+              <div className="hd-price">
+                <strong>{fmtPrice(product.price)}</strong>
+                {product.was > product.price && <s>{fmtPrice(product.was)}</s>}
+              </div>
+              {product.was > product.price && (
+                <div className="hd-save">You save {fmtPrice(product.was - product.price)}</div>
               )}
-              <strong>{getDiscountLabel(product)}</strong>
             </div>
           </button>
         ))}
       </div>
+
+      <style>{`
+        .hd { margin-bottom: 28px; }
+        .hd-head {
+          display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+          background: linear-gradient(100deg, #ff5a1f 0%, #ff8a3d 55%, #ffb056 100%);
+          border-radius: 16px 16px 0 0; padding: 15px 22px;
+        }
+        .hd-head-left { display: flex; align-items: center; gap: 14px; }
+        .hd-flame { font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0,0,0,.22)); }
+        .hd-title { margin: 0; color: #fff; font-family: 'Syne', sans-serif; font-weight: 800;
+          font-size: clamp(20px, 2.6vw, 28px); letter-spacing: .01em; }
+        .hd-sub { margin: 2px 0 0; color: rgba(255,255,255,.92); font-size: 12.5px; font-weight: 500; }
+        .hd-viewall { background: #fff; color: #d9480f; border: 0; font-weight: 800; font-size: 13px;
+          padding: 9px 18px; border-radius: 999px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.14); white-space: nowrap; }
+        .hd-viewall:hover { background: #fff3ea; }
+
+        .hd-row {
+          display: flex; gap: 14px; overflow-x: auto; padding: 18px;
+          background: linear-gradient(180deg, #fff6f0, #fff); border: 1px solid #ffe0cc; border-top: 0;
+          border-radius: 0 0 16px 16px; scrollbar-width: none; scroll-snap-type: x mandatory;
+        }
+        .hd-row::-webkit-scrollbar { display: none; }
+
+        .hd-card {
+          position: relative; flex: 0 0 clamp(200px, 19vw, 240px); scroll-snap-align: start;
+          background: #fff; border: 1px solid #eee; border-radius: 14px; overflow: hidden; cursor: pointer;
+          text-align: left; padding: 0; display: flex; flex-direction: column; transition: transform .18s, box-shadow .18s, border-color .18s;
+        }
+        .hd-card:hover { transform: translateY(-4px); box-shadow: 0 14px 30px rgba(255,90,31,.18); border-color: #ffd0b3; }
+
+        .hd-badge {
+          position: absolute; top: 10px; left: 10px; z-index: 2;
+          background: linear-gradient(135deg, #e8222a, #ff5a1f); color: #fff;
+          font-weight: 800; font-size: 12px; padding: 5px 10px; border-radius: 8px;
+          box-shadow: 0 4px 10px rgba(232,34,42,.35); letter-spacing: .02em;
+        }
+
+        .hd-img { height: 240px; background: linear-gradient(135deg,#f3f6f9,#fafafa);
+          display: flex; align-items: center; justify-content: center; overflow: hidden; color: #9aa4b2; }
+        .hd-img img { width: 100%; height: 100%; object-fit: contain; padding: 14px; }
+
+        .hd-info { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .hd-brand { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #FF5A1F; }
+        .hd-name { margin: 0; font-size: 13px; font-weight: 600; color: #1f2430; line-height: 1.35;
+          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 35px; }
+        .hd-price { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; }
+        .hd-price strong { font-size: 17px; font-weight: 800; color: #131921; }
+        .hd-price s { font-size: 12.5px; color: #9aa4b2; }
+        .hd-save { font-size: 11.5px; font-weight: 700; color: #1a7f37; margin-top: 2px; }
+
+        @media (max-width: 640px) {
+          .hd-head { padding: 13px 16px; }
+          .hd-card { flex: 0 0 64vw; }
+          .hd-img { height: 200px; }
+        }
+      `}</style>
     </section>
   );
 }
@@ -832,7 +906,7 @@ export default function HomePage() {
       <LiveEvents events={events} />
       <CouponStrip coupons={coupons} />
       <div className="myn-content">
-        <RisingStars products={products} />
+        <HotDeals products={products} />
         <MedalBrands brands={brands} />
         <ShopByCategory categories={topCategories} products={products} />
         {topCategories.map((cat) => (
