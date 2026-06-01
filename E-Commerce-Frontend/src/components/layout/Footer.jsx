@@ -20,7 +20,7 @@ export default function Footer() {
       </button>
 
       <div className="wrap">
-        <div className="grid grid-cols-[1.6fr_.8fr_.8fr_.8fr_1fr] gap-12 py-18 pb-12 max-lg:grid-cols-[1fr_1fr] max-md:grid-cols-2 max-md:gap-x-6 max-md:gap-y-9 max-md:py-10">
+        <div className="grid grid-cols-[1.6fr_.8fr_.8fr_1fr] gap-12 py-18 pb-12 max-lg:grid-cols-[1fr_1fr] max-md:grid-cols-2 max-md:gap-x-6 max-md:gap-y-9 max-md:py-10">
           <div className="max-md:col-span-2 max-md:flex max-md:flex-col max-md:items-center max-md:text-center">
             <div className="flex items-center max-md:justify-center">
               <img src="/LOGO.png" alt="TradeEngine" style={{ height: 48, width: 'auto', display: 'block' }} />
@@ -58,13 +58,6 @@ export default function Footer() {
               { label: 'Return Request', fn: () => navigate('/returns') },
               { label: 'Track Order', fn: () => navigate('/track') },
             ]},
-            { title: 'Support', links: [
-              { label: 'Help Center', href: '#' },
-              { label: 'Contact Us', href: '#' },
-              { label: 'Warranty Info', href: '#' },
-              { label: 'Service Centers', href: '#' },
-              { label: 'EMI Options', href: '#' },
-            ]},
             { title: 'Contact', links: [
               { label: `Sales: ${COMPANY.salesPhone}`,     href: COMPANY_LINKS.salesTel },
               { label: `Support: ${COMPANY.supportPhone}`, href: COMPANY_LINKS.supportTel },
@@ -89,7 +82,7 @@ export default function Footer() {
         <div className="border-t border-white/8 py-6 text-xs text-white/40 flex justify-between items-center max-md:flex-col max-md:items-center max-md:text-center max-md:gap-4">
           <span>© {year} Trade Engine Pvt. Ltd. All rights reserved.</span>
           <div className="flex gap-2.5 items-center max-md:justify-center max-md:flex-wrap">
-            {['FONEPAY','COD','EMI','TRANSFER'].map(p => (
+            {['FONEPAY','COD','Upaya Delivery Service'].map(p => (
               <span key={p} className="px-2.5 py-1 border border-white/12 rounded-md text-[10px] font-bold tracking-[0.06em]">{p}</span>
             ))}
           </div>

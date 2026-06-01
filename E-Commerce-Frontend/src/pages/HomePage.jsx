@@ -501,22 +501,30 @@ function MedalBrands({ brands }) {
     const vp = viewportRef.current;
     autoRef.current = false;
     movedRef.current = false;
-    dragRef.current = { x: e.clientX, scroll: vp.scrollLeft };
-    vp.setPointerCapture?.(e.pointerId);
+    // Don't capture the pointer yet — capturing on pointerdown swallows the
+    // child card's click, making the logos un-clickable. We only capture once
+    // the user actually starts dragging (see onPointerMove).
+    dragRef.current = { x: e.clientX, scroll: vp.scrollLeft, pointerId: e.pointerId, captured: false };
   };
   const onPointerMove = (e) => {
     const d = dragRef.current;
     if (!d) return;
     const vp = viewportRef.current;
     const dx = e.clientX - d.x;
-    if (Math.abs(dx) > 4) movedRef.current = true;
+    if (!d.captured) {
+      if (Math.abs(dx) <= 4) return;   // still a tap, not a drag — let the click happen
+      d.captured = true;
+      movedRef.current = true;
+      vp.setPointerCapture?.(d.pointerId);
+    }
     vp.scrollLeft = d.scroll - dx;
     normalize(vp);
     d.scroll = vp.scrollLeft + dx; // keep the anchor consistent after a wrap
   };
   const endDrag = (e) => {
+    const d = dragRef.current;
     const vp = viewportRef.current;
-    vp?.releasePointerCapture?.(e.pointerId);
+    if (d?.captured) vp?.releasePointerCapture?.(e.pointerId);
     dragRef.current = null;
     scheduleResume();
   };
