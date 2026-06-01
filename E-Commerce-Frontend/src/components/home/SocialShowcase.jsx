@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Heart, MessageCircle, Instagram, Facebook, Youtube, Music2,
-  Image as ImageIcon, Play, Link2, ChevronLeft, ChevronRight,
-} from 'lucide-react';
+import { Heart, MessageCircle, Play, ChevronLeft, ChevronRight } from 'lucide-react';
 import { mediaApi } from '../../api/media';
 import { mediaThumbnail, PLATFORM, isVideoType } from '../../utils/media';
 
@@ -14,10 +11,24 @@ const SOCIALS = [
 ];
 const DEFAULT_HANDLE = 'tradengine';
 
-const PLATFORM_ICON = {
-  instagram: Instagram, facebook: Facebook, youtube: Youtube,
-  tiktok: Music2, drive: Link2, image: ImageIcon, video: Play, link: Link2,
-};
+// Inline brand SVGs — the installed lucide-react build does NOT ship brand
+// glyphs (Instagram/Facebook/YouTube are undefined there), which would crash
+// the app. These mirror the Footer's icons.
+function PlatformIcon({ type, size = 20, className }) {
+  const p = { width: size, height: size, viewBox: '0 0 24 24', className };
+  switch (type) {
+    case 'instagram':
+      return <svg {...p} fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="2" width="20" height="20" rx="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>;
+    case 'facebook':
+      return <svg {...p} fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>;
+    case 'youtube':
+      return <svg {...p} fill="currentColor"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.97C18.88 4 12 4 12 4s-6.88 0-8.59.45A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.97C5.12 20 12 20 12 20s6.88 0 8.59-.45a2.78 2.78 0 0 0 1.95-1.97A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z" /><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="#fff" /></svg>;
+    case 'tiktok':
+      return <svg {...p} fill="currentColor"><path d="M21 8.5a6.5 6.5 0 0 1-4.2-1.54v6.79a5.75 5.75 0 1 1-5.75-5.75c.2 0 .4.01.6.03v2.92a2.86 2.86 0 1 0 2.01 2.73V2h2.83a3.67 3.67 0 0 0 .06.67A3.68 3.68 0 0 0 18 5.42 3.65 3.65 0 0 0 21 5.6z" /></svg>;
+    default: // drive / image / video / link
+      return <svg {...p} fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>;
+  }
+}
 
 const fmtCount = (n) => {
   const v = Number(n) || 0;
@@ -76,7 +87,6 @@ export default function SocialShowcase() {
             {items.map(item => {
               const thumb = mediaThumbnail(item);
               const plat = PLATFORM[item.type] || PLATFORM.link;
-              const Icon = PLATFORM_ICON[item.type] || Link2;
               const hasStats = (item.likes || 0) > 0 || (item.comments || 0) > 0;
               return (
                 <article key={item._id} className="sf-card" onClick={() => open(item.url)}
@@ -87,7 +97,7 @@ export default function SocialShowcase() {
                       <span className="sf-handle">{item.handle || DEFAULT_HANDLE}</span>
                       <span className="sf-date">{fmtDate(item.createdAt)}</span>
                     </div>
-                    <Icon size={20} className="sf-plat" />
+                    <PlatformIcon type={item.type} size={20} className="sf-plat" />
                   </div>
 
                   <div className="sf-media">
@@ -96,7 +106,7 @@ export default function SocialShowcase() {
                         onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }} />
                     ) : null}
                     <span className="sf-fallback" style={{ display: thumb ? 'none' : 'flex', background: plat.color }}>
-                      <Icon size={34} />
+                      <PlatformIcon type={item.type} size={34} />
                       <span className="sf-fallback-label">{item.title || plat.label}</span>
                     </span>
                     {isVideoType(item.type) && <span className="sf-reel"><Play size={13} fill="#fff" /></span>}
