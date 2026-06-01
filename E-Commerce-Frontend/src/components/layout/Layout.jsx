@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Header from './Header';
 import Footer from './Footer';
 import MobileBottomNav from './MobileBottomNav';
@@ -54,11 +55,15 @@ function AnnouncementBar() {
 }
 
 export default function Layout({ children }) {
+  // The dedicated /social page already lists every post, so the home-style
+  // "Social Footprints" teaser strip would just be a redundant duplicate there.
+  const { pathname } = useLocation();
+  const showSocialStrip = pathname !== '/social';
   return (
     <>
       <Header />
       <main>{children}</main>
-      <SocialShowcase />
+      {showSocialStrip && <SocialShowcase />}
       <Footer />
       <MobileBottomNav />
     </>
