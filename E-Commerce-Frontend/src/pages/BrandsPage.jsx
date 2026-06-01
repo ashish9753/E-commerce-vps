@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { brandsApi } from '../api/catalog';
+import { toDirectImageUrl } from '../utils/imageUrl';
 
 export default function BrandsPage() {
   const navigate = useNavigate();
@@ -93,7 +94,7 @@ export default function BrandsPage() {
                   >
                     {b.logo ? (
                       <img
-                        src={b.logo}
+                        src={toDirectImageUrl(b.logo)}
                         alt={b.name}
                         className="max-h-[60%] max-w-[80%] object-contain mb-2 transition-transform group-hover:scale-105"
                       />

@@ -27,6 +27,7 @@ import { bannersApi } from '../api/banners';
 import { useCatalog } from '../context/CatalogContext';
 import { cached } from '../utils/apiCache';
 import { normalizeProducts } from '../utils/normalizers';
+import { toDirectImageUrl } from '../utils/imageUrl';
 
 /* Fallback hero slides used until admin uploads real banners. Kept
    intentionally clean — no discount pill, no dark photo overlay — so the
@@ -446,53 +447,146 @@ function RisingStars({ products }) {
 
 function MedalBrands({ brands }) {
   const navigate = useNavigate();
-  const list = brands.filter((brand) => brand.isActive !== false);
-  if (!list.length) return null;
+  const viewportRef = useRef(null);
+  const autoRef = useRef(true);      // is the auto-scroll currently allowed?
+  const dragRef = useRef(null);      // active pointer-drag state, or null
+  const movedRef = useRef(false);    // did the last pointer interaction drag?
+  const resumeRef = useRef(null);    // timer that re-enables auto-scroll
 
-  // Build a seamless right→left marquee. Pad to at least ~10 cards so the strip
-  // fills wide screens, then duplicate the whole set — the CSS animates the
-  // track by exactly -50% (one set) so it loops with no visible jump.
+  const list = brands.filter((brand) => brand.isActive !== false);
+
+  // Pad to at least ~10 cards so the strip fills wide screens, then duplicate
+  // the whole set. Auto-scroll wraps at the halfway point so it loops with no
+  // visible jump; the duplicate also gives the manual drag room on both sides.
   const minItems = Math.max(list.length, 10);
   const base = Array.from({ length: minItems }, (_, i) => list[i % list.length]);
-  const loop = [...base, ...base];
+  const loop = list.length ? [...base, ...base] : [];
+
+  // Auto right→left scroll, driven by scrollLeft so the user can also drag the
+  // strip by hand (a CSS transform animation would fight manual scrolling).
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp || !loop.length) return;
+    const SPEED = 0.5; // px/frame ≈ the old 38s sweep
+    let raf;
+    const tick = () => {
+      if (autoRef.current && !dragRef.current && !document.hidden) {
+        vp.scrollLeft += SPEED;
+        const half = vp.scrollWidth / 2;
+        if (vp.scrollLeft >= half) vp.scrollLeft -= half; // seamless wrap
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [loop.length]);
+
+  useEffect(() => () => clearTimeout(resumeRef.current), []);
+
+  if (!list.length) return null;
+
+  // Keep scrollLeft inside one set so the strip never reaches a hard edge.
+  const normalize = (vp) => {
+    const half = vp.scrollWidth / 2;
+    if (vp.scrollLeft >= half) vp.scrollLeft -= half;
+    else if (vp.scrollLeft < 0) vp.scrollLeft += half;
+  };
+
+  const scheduleResume = () => {
+    clearTimeout(resumeRef.current);
+    resumeRef.current = setTimeout(() => { autoRef.current = true; }, 1500);
+  };
+
+  const onPointerDown = (e) => {
+    const vp = viewportRef.current;
+    autoRef.current = false;
+    movedRef.current = false;
+    dragRef.current = { x: e.clientX, scroll: vp.scrollLeft };
+    vp.setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const vp = viewportRef.current;
+    const dx = e.clientX - d.x;
+    if (Math.abs(dx) > 4) movedRef.current = true;
+    vp.scrollLeft = d.scroll - dx;
+    normalize(vp);
+    d.scroll = vp.scrollLeft + dx; // keep the anchor consistent after a wrap
+  };
+  const endDrag = (e) => {
+    const vp = viewportRef.current;
+    vp?.releasePointerCapture?.(e.pointerId);
+    dragRef.current = null;
+    scheduleResume();
+  };
+
+  // Arrow buttons: nudge by roughly one card and pause auto-scroll briefly.
+  const nudge = (dir) => {
+    const vp = viewportRef.current;
+    autoRef.current = false;
+    vp.scrollBy({ left: dir * 210, behavior: 'smooth' });
+    scheduleResume();
+  };
 
   return (
     <section>
       <SectionHeader title="Medal Worthy Brands To Bag" link="/brands" />
       <div className="myn-brand-marquee">
-        <div className="myn-brand-marquee-track">
-          {loop.map((brand, i) => (
-            <button
-              className="myn-medal-card"
-              key={`${brand._id || brand.name}-${i}`}
-              onClick={() => navigate(`/products?brand=${encodeURIComponent(brand.name)}`)}
-              aria-hidden={i >= base.length ? true : undefined}
-              tabIndex={i >= base.length ? -1 : undefined}
-            >
-              <div className="myn-medal-img">
-                {brand.logo ? (
-                  <img
-                    src={brand.logo}
-                    alt={brand.name}
-                    onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
-                  />
-                ) : null}
-                <div style={{
-                  display: brand.logo ? 'none' : 'flex',
-                  width: 80, height: 80, borderRadius: '50%',
-                  background: 'linear-gradient(135deg,#FF5A1F22,#FF5A1F44)',
-                  alignItems: 'center', justifyContent: 'center',
-                  fontSize: 36, fontWeight: 900, color: '#FF5A1F', letterSpacing: '-1px',
-                }}>
-                  {brand.name.charAt(0).toUpperCase()}
+        <button className="myn-medal-arrow left" onClick={() => nudge(-1)} aria-label="Previous brands">
+          <ChevronLeft size={22} strokeWidth={2.5} />
+        </button>
+        <div
+          className="myn-brand-marquee-viewport"
+          ref={viewportRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onMouseEnter={() => { autoRef.current = false; }}
+          onMouseLeave={() => { if (!dragRef.current) autoRef.current = true; }}
+        >
+          <div className="myn-brand-marquee-track">
+            {loop.map((brand, i) => (
+              <button
+                className="myn-medal-card"
+                key={`${brand._id || brand.name}-${i}`}
+                onClick={() => {
+                  if (movedRef.current) { movedRef.current = false; return; } // ignore drag, not a click
+                  navigate(`/products?brand=${encodeURIComponent(brand.name)}`);
+                }}
+                aria-hidden={i >= base.length ? true : undefined}
+                tabIndex={i >= base.length ? -1 : undefined}
+              >
+                <div className="myn-medal-img">
+                  {brand.logo ? (
+                    <img
+                      src={toDirectImageUrl(brand.logo)}
+                      alt={brand.name}
+                      draggable={false}
+                      onError={(e) => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }}
+                    />
+                  ) : null}
+                  <div style={{
+                    display: brand.logo ? 'none' : 'flex',
+                    width: 80, height: 80, borderRadius: '50%',
+                    background: 'linear-gradient(135deg,#FF5A1F22,#FF5A1F44)',
+                    alignItems: 'center', justifyContent: 'center',
+                    fontSize: 36, fontWeight: 900, color: '#FF5A1F', letterSpacing: '-1px',
+                  }}>
+                    {brand.name.charAt(0).toUpperCase()}
+                  </div>
                 </div>
-              </div>
-              <div className="myn-medal-copy">
-                <span>{brand.name}</span>
-              </div>
-            </button>
-          ))}
+                <div className="myn-medal-copy">
+                  <span>{brand.name}</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
+        <button className="myn-medal-arrow right" onClick={() => nudge(1)} aria-label="Next brands">
+          <ChevronRight size={22} strokeWidth={2.5} />
+        </button>
       </div>
     </section>
   );
@@ -1096,30 +1190,57 @@ export default function HomePage() {
           padding-bottom: 22px;
         }
 
-        /* ── Brands marquee: continuous right→left auto-scroll ── */
+        /* ── Brands marquee: auto right→left scroll the user can also drag ── */
         .myn-brand-marquee {
-          overflow: hidden;
+          position: relative;
           padding-bottom: 22px;
+        }
+        .myn-brand-marquee-viewport {
+          overflow-x: auto;
+          overflow-y: hidden;
+          cursor: grab;
+          scrollbar-width: none;        /* Firefox */
+          -ms-overflow-style: none;     /* IE/Edge */
+          touch-action: pan-y;          /* let our pointer handler own horizontal */
           /* Soft fade at both edges so cards appear/disappear gracefully. */
           -webkit-mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
           mask-image: linear-gradient(90deg, transparent, #000 3%, #000 97%, transparent);
         }
+        .myn-brand-marquee-viewport::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+        .myn-brand-marquee-viewport:active { cursor: grabbing; }
         .myn-brand-marquee-track {
           display: flex;
           gap: 10px;
           width: max-content;
-          animation: brand-marquee 38s linear infinite;
         }
-        /* Pause when the user hovers so they can read / click a logo. */
-        .myn-brand-marquee:hover .myn-brand-marquee-track { animation-play-state: paused; }
         .myn-brand-marquee .myn-medal-card { flex: 0 0 200px; }
-        @keyframes brand-marquee {
-          from { transform: translateX(0); }
-          to   { transform: translateX(-50%); }
+        /* Don't let logos hijack the drag as a native image drag. */
+        .myn-brand-marquee-viewport img { user-select: none; -webkit-user-drag: none; }
+
+        /* Manual swap arrows, matching the category carousel controls. */
+        .myn-medal-arrow {
+          position: absolute;
+          top: calc(50% - 11px);
+          transform: translateY(-50%);
+          z-index: 2;
+          width: 40px;
+          height: 40px;
+          border: 0;
+          border-radius: 50%;
+          background: #fff;
+          color: #1f2937;
+          box-shadow: 0 2px 10px #0000002e;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
         }
+        .myn-medal-arrow.left { left: 4px; }
+        .myn-medal-arrow.right { right: 4px; }
+        .myn-medal-arrow:hover { background: #f3f4f6; }
+
         @media (prefers-reduced-motion: reduce) {
-          .myn-brand-marquee-track { animation: none; }
-          .myn-brand-marquee { overflow-x: auto; }
+          .myn-brand-marquee-viewport { scroll-behavior: auto; }
         }
 
         /* Rising Stars: horizontal carousel so all items are reachable by

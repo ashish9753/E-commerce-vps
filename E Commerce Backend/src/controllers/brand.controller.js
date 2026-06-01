@@ -1,5 +1,6 @@
 import Brand from "../models/brand.model.js";
 import { generateUniqueSlug } from "../utils/slugify.utils.js";
+import { toDirectImageUrl } from "../utils/imageUrl.utils.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 
@@ -21,7 +22,10 @@ const findExistingBrand = async (rawName) => {
 
 export const createBrand = async (req, res, next) => {
   try {
-    const { name, logo } = req.body;
+    const { name } = req.body;
+    // Google Drive *share* links don't render in <img>; rewrite to the direct
+    // embeddable form (same handling as banners / product images).
+    const logo = toDirectImageUrl(req.body.logo);
     if (!name) throw new ApiError(400, "Brand name is required");
     const trimmed = name.trim();
 
@@ -67,6 +71,11 @@ export const getAllBrands = async (req, res, next) => {
     const isAdminAll = req.path === "/all" && req.user && (req.user.role === "admin" || req.user.role === "employee");
     const filter = isAdminAll ? {} : { isActive: true };
     const brands = await Brand.find(filter).sort({ name: 1 });
+    // The catalog changes the moment an admin/employee adds or edits a brand, so
+    // the list must never be served stale from a browser or edge/CDN cache —
+    // otherwise a freshly-added brand stays invisible to other staff even after
+    // a hard refresh. Force revalidation on every request.
+    res.set("Cache-Control", "no-store");
     res.json(new ApiResponse(200, { brands }));
   } catch (err) { next(err); }
 };
@@ -81,7 +90,8 @@ export const restoreBrand = async (req, res, next) => {
 
 export const updateBrand = async (req, res, next) => {
   try {
-    const { name, logo, isActive } = req.body;
+    const { name, isActive } = req.body;
+    const logo = toDirectImageUrl(req.body.logo);
     const updates = { logo, isActive };
     if (name) {
       const trimmed = name.trim();

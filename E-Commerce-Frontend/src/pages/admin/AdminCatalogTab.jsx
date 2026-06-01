@@ -2,6 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { brandsApi, categoriesApi, attributesApi, eventsApi } from '../../api/catalog';
 import { useCatalog } from '../../context/CatalogContext';
 import { useFormDraft } from '../../hooks/useFormDraft';
+import { toDirectImageUrl } from '../../utils/imageUrl';
 import { C } from '../../theme/dashboardTheme';
 
 const SECTIONS = [
@@ -170,7 +171,7 @@ function BrandsSection({ onMutate }) {
             </div>
             {draft.logo.trim() && (
               <div style={{ width: 44, height: 44, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, marginTop: 18 }}>
-                <img src={draft.logo.trim()} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                <img src={toDirectImageUrl(draft.logo.trim())} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                   onError={e => { e.currentTarget.style.display = 'none'; }} />
               </div>
             )}
@@ -190,7 +191,7 @@ function BrandsSection({ onMutate }) {
                     <div style={{ width: 40, height: 40, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                       {editDraft.logo
-                        ? <img src={editDraft.logo} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
+                        ? <img src={toDirectImageUrl(editDraft.logo)} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
                         : <span style={{ fontWeight: 800, fontSize: 15, color: C.accent }}>{(editDraft.name || '?').charAt(0).toUpperCase()}</span>}
                     </div>
                   </td>
@@ -213,7 +214,7 @@ function BrandsSection({ onMutate }) {
                     <div style={{ width: 40, height: 40, borderRadius: 8, border: `1px solid ${C.border}`, background: C.bg,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                       {b.logo
-                        ? <img src={b.logo} alt={b.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        ? <img src={toDirectImageUrl(b.logo)} alt={b.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                             onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex'; }} />
                         : null}
                       <span style={{ display: b.logo ? 'none' : 'flex', width: '100%', height: '100%',
