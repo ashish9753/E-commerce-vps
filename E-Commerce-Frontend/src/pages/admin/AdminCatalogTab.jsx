@@ -333,6 +333,7 @@ function CategoriesSection({ onMutate }) {
   };
 
   const remove = async (id) => {
+    if (!window.confirm('Delete this category? This will hide it from the store. This action cannot be undone here.')) return;
     setError('');
     try { await categoriesApi.remove(id); load(); onMutate?.(); }
     catch (err) { setError(err.response?.data?.message || 'Failed to delete category'); }
@@ -487,6 +488,7 @@ function SubCategoriesSection({ onMutate }) {
   };
 
   const remove = async (id) => {
+    if (!window.confirm('Delete this sub-category? This will hide it from the store. This action cannot be undone here.')) return;
     setError('');
     try { await categoriesApi.remove(id); load(); onMutate?.(); }
     catch (err) { setError(err.response?.data?.message || 'Failed to delete sub-category'); }
@@ -613,6 +615,7 @@ function AttributesSection({ onMutate }) {
   };
 
   const remove = async (id) => {
+    if (!window.confirm('Delete this attribute? This action cannot be undone here.')) return;
     setError('');
     try { await attributesApi.remove(id); load(); onMutate?.(); }
     catch (err) { setError(err.response?.data?.message || 'Failed to delete attribute'); }
