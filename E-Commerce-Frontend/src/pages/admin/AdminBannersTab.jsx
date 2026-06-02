@@ -194,13 +194,16 @@ export default function AdminBannersTab() {
 
     setSaving(true);
     try {
+      // Text fields that an editor is allowed to wipe back to empty. When editing,
+      // we must send the empty string explicitly so the server clears the old value.
+      const CLEARABLE = new Set(['title', 'subtitle', 'overlayText', 'ctaLabel', 'link', 'product']);
       const fd = new FormData();
       Object.entries(draft).forEach(([k, v]) => {
         if (v === undefined || v === null) return;
         if (k === 'isActive') fd.append(k, v ? 'true' : 'false');
         else if (typeof v === 'boolean') fd.append(k, v ? 'true' : 'false');
         else if (v !== '') fd.append(k, v);
-        else if (editingId && (k === 'product' || k === 'link')) fd.append(k, ''); // explicit clear
+        else if (editingId && CLEARABLE.has(k)) fd.append(k, ''); // explicit clear on edit
       });
       if (file) fd.append('image', file);
 

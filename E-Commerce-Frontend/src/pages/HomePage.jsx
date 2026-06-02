@@ -286,7 +286,7 @@ function HeroMyntraStyle({ banners = [] }) {
         title:      b.title,
         subtitle:   b.subtitle,
         overlay:    b.overlayText,
-        cta:        b.ctaLabel || 'Shop Now',
+        cta:        b.ctaLabel ?? '',
         textColor:  b.textColor || '#ffffff',
         textPosition: b.textPosition || 'left',
         fontFamily: b.fontFamily || 'Syne',
@@ -386,13 +386,15 @@ function HeroMyntraStyle({ banners = [] }) {
             }}>{current.title}</h1>
           )}
           {current.subtitle && <p>{current.subtitle}</p>}
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); navigate(current.path); }}
-            className="myn-hero-cta"
-          >
-            {current.cta} <ChevronRight size={18} />
-          </button>
+          {current.cta && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); navigate(current.path); }}
+              className="myn-hero-cta"
+            >
+              {current.cta} <ChevronRight size={18} />
+            </button>
+          )}
         </div>
       </div>
       <div className="myn-dots" aria-label="Banner slides">

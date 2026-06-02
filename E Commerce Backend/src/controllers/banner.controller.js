@@ -6,6 +6,12 @@ import { isValidImageUrl, toDirectImageUrl } from "../utils/imageUrl.utils.js";
 
 const parseBoolean = (v) => v === true || v === "true" || v === 1 || v === "1";
 
+// Text fields that may legitimately be set back to empty (so an admin can
+// leave a banner's title/subtitle/tag/CTA blank). Empty strings on these are
+// applied as a clear; on every other field an empty string is ignored so we
+// don't wipe a column that has a meaningful default (color, font, etc.).
+const CLEARABLE_TEXT = new Set(["title", "subtitle", "overlayText", "ctaLabel", "link"]);
+
 const pickBannerFields = (body) => {
   const out = {};
   const keys = [
@@ -14,7 +20,9 @@ const pickBannerFields = (body) => {
     "link", "product", "position", "startDate", "endDate",
   ];
   for (const k of keys) {
-    if (body[k] !== undefined && body[k] !== "") out[k] = body[k];
+    if (body[k] === undefined) continue;
+    if (body[k] === "" && !CLEARABLE_TEXT.has(k)) continue;
+    out[k] = body[k];
   }
   if (body.isActive !== undefined) out.isActive = parseBoolean(body.isActive);
   if (out.position !== undefined) out.position = parseInt(out.position, 10) || 0;
