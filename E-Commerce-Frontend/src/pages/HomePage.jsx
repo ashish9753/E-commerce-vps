@@ -1538,7 +1538,9 @@ export default function HomePage() {
         .myn-category-visual img {
           width: 100%;
           height: 100%;
-          object-fit: cover;
+          object-fit: contain;
+          object-position: center;
+          background: #fff;
           transition: transform .25s ease;
         }
 
