@@ -832,6 +832,9 @@ function CouponStrip({ coupons }) {
                 ? `${coupon.discountValue}% OFF`
                 : `${money(coupon.discountValue)} OFF`}
             </strong>
+            {coupon.discountType === 'PERCENTAGE' && coupon.maximumDiscount > 0 && (
+              <em>Grab up to {money(coupon.maximumDiscount)} OFF</em>
+            )}
             <small>{copied === coupon.code ? 'Copied' : 'Tap to copy'}</small>
           </button>
         ))}
@@ -1633,8 +1636,17 @@ export default function HomePage() {
 
         .myn-coupon-list button span,
         .myn-coupon-list button strong,
+        .myn-coupon-list button em,
         .myn-coupon-list button small {
           display: block;
+        }
+
+        .myn-coupon-list button em {
+          color: rgba(255, 255, 255, .82);
+          font-size: 11px;
+          font-style: normal;
+          font-weight: 600;
+          margin-bottom: 4px;
         }
 
         .myn-coupon-list button strong {
