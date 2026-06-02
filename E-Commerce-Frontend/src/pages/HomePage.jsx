@@ -741,7 +741,6 @@ function ShopByCategory({ categories, products = [] }) {
                       </div>
                       <div className="myn-category-label">
                         <span>{category.name}</span>
-                        <p>Shop Now</p>
                       </div>
                     </button>
                   );
