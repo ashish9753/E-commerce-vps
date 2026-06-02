@@ -7,6 +7,7 @@ import { ordersApi } from '../../api/orders';
 import { returnsApi } from '../../api/returns';
 import { couponsApi } from '../../api/coupons';
 import { productsApi } from '../../api/products';
+import { invalidate } from '../../utils/apiCache';
 import { notificationsApi } from '../../api/notifications';
 import { supportApi } from '../../api/support';
 import {
@@ -3775,13 +3776,21 @@ export default function AdminDashboard() {
       .catch(() => {});
   }, []);
 
+  // Drop home-page product caches so Hot Deal flag / product changes show on
+  // the storefront without waiting for the cache TTL.
+  const invalidateHomeProductCaches = () => {
+    invalidate('home:hotDeals');
+    invalidate('home:myntraStyleProducts');
+  };
   const handleAdminAddProduct = async (data) => {
     await employeeApi.createProduct(data);
+    invalidateHomeProductCaches();
     setRefreshKeys(k => ({ ...k, Products: (k['Products'] || 0) + 1 }));
     handleTabClick('Products');
   };
   const handleAdminEditSave = async (data) => {
     await employeeApi.updateProduct(editProduct._id, data);
+    invalidateHomeProductCaches();
     setEditProduct(null);
     setRefreshKeys(k => ({ ...k, Products: (k['Products'] || 0) + 1 }));
     handleTabClick('Products');

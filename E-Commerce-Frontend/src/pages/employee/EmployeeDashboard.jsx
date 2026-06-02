@@ -13,6 +13,7 @@ import { settingsApi } from '../../api/settings';
 import { couponsApi } from '../../api/coupons';
 import { productsApi } from '../../api/products';
 import { attributesApi } from '../../api/catalog';
+import { invalidate } from '../../utils/apiCache';
 import { useCatalog } from '../../context/CatalogContext';
 import AdminCatalogTab from '../admin/AdminCatalogTab';
 import AdminBannersTab from '../admin/AdminBannersTab';
@@ -3299,14 +3300,23 @@ export default function SellerDashboard() {
   // so reopening a product looks "unedited".
   const refreshProducts = () => setRefreshKeys(k => ({ ...k, Products: (k.Products || 0) + 1 }));
 
+  // Drop the home-page product caches so a new/edited product (and any Hot Deal
+  // flag change) shows on the storefront without waiting for the TTL to lapse.
+  const invalidateHomeProductCaches = () => {
+    invalidate('home:hotDeals');
+    invalidate('home:myntraStyleProducts');
+  };
+
   const handleAddProduct = async (data) => {
     await employeeApi.createProduct(data);
+    invalidateHomeProductCaches();
     refreshProducts();
     handleTabClick('Products');
   };
 
   const handleEditSave = async (data) => {
     await employeeApi.updateProduct(editProduct._id, data);
+    invalidateHomeProductCaches();
     setEdit(null);
     refreshProducts();
     handleTabClick('Products');

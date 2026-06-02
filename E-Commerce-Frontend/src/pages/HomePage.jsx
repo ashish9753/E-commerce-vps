@@ -880,9 +880,11 @@ export default function HomePage() {
     ).then(setProducts).catch(() => {});
 
     // Hot Deals are manually curated — only products an admin/employee flagged.
+    // Short TTL so a freshly-flagged product shows up on the home page quickly
+    // instead of being stuck behind a 10-minute cache.
     cached(
       'home:hotDeals',
-      10 * 60 * 1000,
+      60 * 1000,
       () => productsApi.getAll({ hotDeal: true, sort: 'newest', limit: 15 })
         .then(({ data }) => normalizeProducts(data.data?.products || data.data?.data || [])),
     ).then(setHotDeals).catch(() => {});
