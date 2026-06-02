@@ -15,7 +15,24 @@ const esc = (s = "") =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const page = ({ title, desc, image, url, price }) => `<!doctype html>
+// WhatsApp/Facebook drop the preview image when it's too big or slow to fetch
+// (that's why "sometimes only the link goes"). For Cloudinary-hosted product
+// images we inject a transformation that returns a small, fast, exactly
+// 1200x630 card (product padded on white) — so crawlers reliably show it.
+// Non-Cloudinary URLs are returned untouched (we can't know their size).
+const ogImage = (raw) => {
+  const url = toDirectImageUrl(raw || "");
+  if (!url) return { url: `${SITE_URL}/Banner1.png`, sized: false };
+  if (/res\.cloudinary\.com\/.+\/upload\//.test(url) && !/\/upload\/[^/]*[wh]_\d/.test(url)) {
+    return {
+      url: url.replace(/\/upload\//, "/upload/w_1200,h_630,c_pad,b_white,q_auto,f_jpg/"),
+      sized: true,
+    };
+  }
+  return { url, sized: false };
+};
+
+const page = ({ title, desc, image, imageSized, url, price }) => `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"/>
 <title>${esc(title)}</title>
@@ -25,8 +42,10 @@ const page = ({ title, desc, image, url, price }) => `<!doctype html>
 <meta property="og:title" content="${esc(title)}"/>
 <meta property="og:description" content="${esc(desc)}"/>
 <meta property="og:image" content="${esc(image)}"/>
-<meta property="og:image:width" content="1200"/>
-<meta property="og:image:height" content="630"/>
+<meta property="og:image:secure_url" content="${esc(image)}"/>
+<meta property="og:image:type" content="image/jpeg"/>
+${imageSized ? `<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>` : ""}
 <meta property="og:url" content="${esc(url)}"/>
 ${price ? `<meta property="product:price:amount" content="${price}"/>
 <meta property="product:price:currency" content="NPR"/>` : ""}
@@ -53,10 +72,12 @@ export const productOgPage = async (req, res) => {
       .lean();
 
     if (!p) {
+      const img = ogImage("");
       return res.status(200).type("html").send(page({
         title: "Trade Engine — Electronics & Home Appliances",
         desc: "Nepal's most trusted destination for electronics and home appliances.",
-        image: `${SITE_URL}/Banner1.png`,
+        image: img.url,
+        imageSized: img.sized,
         url: SITE_URL,
       }));
     }
@@ -66,21 +87,24 @@ export const productOgPage = async (req, res) => {
     const desc =
       (p.shortDescription || p.description || "").trim().slice(0, 200) ||
       `Buy ${p.title} at Trade Engine — Rs. ${Number(price).toLocaleString("en-IN")}.`;
-    const image = toDirectImageUrl(p.images?.[0] || "") || `${SITE_URL}/Banner1.png`;
+    const img = ogImage(p.images?.[0]);
 
     res.status(200).type("html").send(page({
       title,
       desc,
-      image,
+      image: img.url,
+      imageSized: img.sized,
       url: `${SITE_URL}/product/${p._id}`,
       price,
     }));
   } catch (err) {
     // Never error a crawler — fall back to a generic redirect page.
+    const img = ogImage("");
     res.status(200).type("html").send(page({
       title: "Trade Engine",
       desc: "Nepal's most trusted destination for electronics and home appliances.",
-      image: `${SITE_URL}/Banner1.png`,
+      image: img.url,
+      imageSized: img.sized,
       url: fallback,
     }));
   }

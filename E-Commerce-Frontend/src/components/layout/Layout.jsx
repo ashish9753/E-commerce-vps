@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
 import Header from './Header';
 import Footer from './Footer';
 import MobileBottomNav from './MobileBottomNav';
-import SocialShowcase from '../home/SocialShowcase';
 import { useCatalog } from '../../context/CatalogContext';
 import { couponsApi } from '../../api/coupons';
 import { cached } from '../../utils/apiCache';
@@ -55,15 +53,12 @@ function AnnouncementBar() {
 }
 
 export default function Layout({ children }) {
-  // The dedicated /social page already lists every post, so the home-style
-  // "Social Footprints" teaser strip would just be a redundant duplicate there.
-  const { pathname } = useLocation();
-  const showSocialStrip = pathname !== '/social';
+  // Social content lives only on the dedicated Media page (/social) via
+  // SocialMediaPage — no global teaser strip above the footer on other pages.
   return (
     <>
       <Header />
       <main>{children}</main>
-      {showSocialStrip && <SocialShowcase />}
       <Footer />
       <MobileBottomNav />
     </>
