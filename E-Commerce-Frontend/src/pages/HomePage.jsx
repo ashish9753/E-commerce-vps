@@ -1566,14 +1566,14 @@ export default function HomePage() {
         .tone-5 { background: #6a553f; }
 
         .myn-category-label {
-          margin: -84px 10px 0;
-          min-height: 106px;
+          margin: -50px 10px 0;
+          min-height: 52px;
           position: relative;
           display: flex;
           flex-direction: column;
           justify-content: center;
           align-items: center;
-          padding: 12px 8px;
+          padding: 8px;
           background: rgba(193, 70, 37, .9);
           color: #fff;
           text-align: center;
@@ -1939,8 +1939,8 @@ export default function HomePage() {
           .myn-hero-arrow.right { right: 10px; }
 
           .myn-category-label {
-            margin: -74px 8px 0;
-            min-height: 96px;
+            margin: -44px 8px 0;
+            min-height: 46px;
           }
 
           .myn-category-label span {
