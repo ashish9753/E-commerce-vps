@@ -408,6 +408,16 @@ export function ProductsTab({ onEdit }) {
     setBusy(null);
   };
 
+  // Quick Hot Deal toggle straight from the table. Drops the home cache so the
+  // storefront's Hot Deals section reflects the change right away.
+  const handleToggleHotDeal = async (p) => {
+    setBusy(p._id);
+    await employeeApi.updateProduct(p._id, { isHotDeal: !p.isHotDeal }).catch(()=>{});
+    invalidate('home:hotDeals');
+    setAll(prev => prev.map(x => x._id === p._id ? {...x, isHotDeal: !p.isHotDeal} : x));
+    setBusy(null);
+  };
+
   if (loading) return <Loader />;
 
   return (
@@ -447,7 +457,7 @@ export function ProductsTab({ onEdit }) {
           <div style={{ overflowX:'auto' }}>
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead><tr>
-                <Th>Product</Th><Th>Category</Th><Th>MRP</Th><Th>Sale Price</Th><Th>Discount</Th><Th>Stock</Th><Th>Sold</Th><Th>Status</Th><Th>Actions</Th>
+                <Th>Product</Th><Th>Category</Th><Th>MRP</Th><Th>Sale Price</Th><Th>Discount</Th><Th>Stock</Th><Th>Sold</Th><Th>Status</Th><Th>Actions</Th><Th>Hot Deal</Th>
               </tr></thead>
               <tbody>
                 {products.map(p => {
@@ -497,6 +507,16 @@ export function ProductsTab({ onEdit }) {
                             <SvgAt el={Icon.trash} size={12} /> Del
                           </button>
                         </div>
+                      </Td>
+                      <Td>
+                        <button onClick={()=>handleToggleHotDeal(p)} disabled={busy===p._id}
+                          title={p.isHotDeal ? 'Remove from Hot Deals' : 'Add to Hot Deals'}
+                          style={{ fontSize:11, fontWeight:700, padding:'4px 10px', borderRadius:8, cursor:'pointer', whiteSpace:'nowrap',
+                            background: p.isHotDeal ? '#f9731622' : C.card2,
+                            color:      p.isHotDeal ? '#f97316'  : C.mute,
+                            border:     `1px solid ${p.isHotDeal ? '#f9731644' : C.line}` }}>
+                          {p.isHotDeal ? '🔥 Hot Deal' : '🔥 Mark'}
+                        </button>
                       </Td>
                     </tr>
                   );
