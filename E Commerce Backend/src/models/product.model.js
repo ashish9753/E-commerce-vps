@@ -32,6 +32,9 @@ const productSchema = new mongoose.Schema(
     colors: { type: [colorSchema], default: [] },
     specifications: { type: Map, of: String },
     isFeatured:    { type: Boolean, default: false },
+    // Manually curated "Hot Deals" — only products an admin/employee flags here
+    // appear in the home page Hot Deals section.
+    isHotDeal:     { type: Boolean, default: false },
     isPublished:   { type: Boolean, default: true },
     isDeleted:     { type: Boolean, default: false },
     returnable:    { type: Boolean, default: true },

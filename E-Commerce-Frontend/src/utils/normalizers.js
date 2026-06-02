@@ -31,6 +31,7 @@ export function normalizeProduct(p) {
     reviews: p.numReviews || 0,
     stock: p.stock ?? 0,
     isFeatured: p.isFeatured || false,
+    isHotDeal: p.isHotDeal || false,
     description: p.description || '',
     shortDescription: p.shortDescription || '',
     specs,

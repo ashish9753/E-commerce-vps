@@ -47,7 +47,7 @@ export const createProduct = async (req, res, next) => {
       if (!employee) throw new ApiError(403, "Only verified employees can create products");
     }
 
-    const { title, description, shortDescription, category, brand, sku, price, discountPrice, stock, tags, specifications, isFeatured, returnable, returnWindow } = req.body;
+    const { title, description, shortDescription, category, brand, sku, price, discountPrice, stock, tags, specifications, isFeatured, isHotDeal, returnable, returnWindow } = req.body;
     if (!title || !description || !category || !price) {
       throw new ApiError(400, "title, description, category, and price are required");
     }
@@ -77,6 +77,7 @@ export const createProduct = async (req, res, next) => {
       tags: tags ? (Array.isArray(tags) ? tags : tags.split(",").map((t) => t.trim())) : [],
       specifications: specifications ? new Map(Object.entries(typeof specifications === "string" ? JSON.parse(specifications) : specifications)) : new Map(),
       isFeatured:   isFeatured === "true" || isFeatured === true,
+      isHotDeal:    isHotDeal === "true" || isHotDeal === true,
       returnable:   returnable === false || returnable === "false" ? false : true,
       returnWindow: [7, 10].includes(parseInt(returnWindow)) ? parseInt(returnWindow) : 7,
       images,
@@ -102,7 +103,7 @@ export const createProduct = async (req, res, next) => {
 export const getProducts = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationData(req.query);
-    const { search, category, brand, minPrice, maxPrice, sort, isFeatured, onSale } = req.query;
+    const { search, category, brand, minPrice, maxPrice, sort, isFeatured, hotDeal, onSale } = req.query;
 
     const filter = { isDeleted: false, isPublished: true };
     // Computed-field ($expr) conditions accumulate here so multiple of them
@@ -151,6 +152,8 @@ export const getProducts = async (req, res, next) => {
         : { $regex: brandList[0], $options: 'i' };
     }
     if (isFeatured) filter.isFeatured = isFeatured === "true";
+    // ?hotDeal=true → only products an admin/employee curated as Hot Deals.
+    if (hotDeal) filter.isHotDeal = hotDeal === "true";
 
     // Price range filters on the price the customer actually pays — the
     // discounted price when there's a real discount, otherwise the MRP. This
@@ -250,7 +253,7 @@ export const updateProduct = async (req, res, next) => {
     const ALLOWED = [
       "title", "description", "shortDescription", "category", "brand", "sku",
       "price", "discountPrice", "stock", "tags", "specifications",
-      "isFeatured", "isPublished", "returnable", "returnWindow",
+      "isFeatured", "isHotDeal", "isPublished", "returnable", "returnWindow",
       "keepImages",
       ...(req.user.role === "admin" ? ["employee"] : []),
     ];

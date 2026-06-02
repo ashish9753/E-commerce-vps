@@ -413,11 +413,9 @@ function HeroMyntraStyle({ banners = [] }) {
 
 function HotDeals({ products }) {
   const navigate = useNavigate();
-  // Real "hot deals": only discounted items, biggest discount first. Falls back
-  // to whatever we have if nothing is on sale, so the section is never empty
-  // when there are products to show.
-  const onSale = products.filter((p) => p.off > 0).sort((a, b) => b.off - a.off);
-  const items = (onSale.length ? onSale : products).slice(0, 15);
+  // Curated list — only products an admin/employee marked as "Hot Deal".
+  // Biggest discount shown first so the strongest offers lead.
+  const items = [...products].sort((a, b) => b.off - a.off).slice(0, 15);
   if (!items.length) return null;
 
   return (
@@ -868,6 +866,7 @@ function TrustBand() {
 export default function HomePage() {
   const { brands, topCategories, events } = useCatalog();
   const [products, setProducts] = useState([]);
+  const [hotDeals, setHotDeals] = useState([]);
   const [coupons, setCoupons] = useState([]);
   const [banners, setBanners] = useState([]);
   const [categoryProducts, setCategoryProducts] = useState({});
@@ -879,6 +878,14 @@ export default function HomePage() {
       () => productsApi.getAll({ sort: 'popular', limit: 36 })
         .then(({ data }) => normalizeProducts(data.data?.products || data.data?.data || [])),
     ).then(setProducts).catch(() => {});
+
+    // Hot Deals are manually curated — only products an admin/employee flagged.
+    cached(
+      'home:hotDeals',
+      10 * 60 * 1000,
+      () => productsApi.getAll({ hotDeal: true, sort: 'newest', limit: 15 })
+        .then(({ data }) => normalizeProducts(data.data?.products || data.data?.data || [])),
+    ).then(setHotDeals).catch(() => {});
 
     couponsApi.getPublic()
       .then(({ data }) => setCoupons(data.data?.coupons || []))
@@ -911,7 +918,7 @@ export default function HomePage() {
       <LiveEvents events={events} />
       <CouponStrip coupons={coupons} />
       <div className="myn-content">
-        <HotDeals products={products} />
+        <HotDeals products={hotDeals} />
         <MedalBrands brands={brands} />
         <ShopByCategory categories={topCategories} products={products} />
         {topCategories.map((cat) => (

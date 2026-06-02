@@ -981,7 +981,7 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
     ? (typeof initial.employee === 'object' ? initial.employee?._id : initial.employee) || ''
     : '';
 
-  const empty = { title:'',description:'',shortDescription:'',brand:'',sku:'',tags:'',price:'',discountPrice:'',stock:'',category:'',isFeatured:false,isPublished:true,returnable:true,returnWindow:7,taxLabel:'No Tax',taxRate:0,employee:initEmployeeId };
+  const empty = { title:'',description:'',shortDescription:'',brand:'',sku:'',tags:'',price:'',discountPrice:'',stock:'',category:'',isFeatured:false,isHotDeal:false,isPublished:true,returnable:true,returnWindow:7,taxLabel:'No Tax',taxRate:0,employee:initEmployeeId };
 
   // Derive initial parentCat from the initial category's parent field
   const initCatId = initial ? (typeof initial.category==='object' ? initial.category?._id : initial.category)||'' : '';
@@ -999,7 +999,7 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
     price: initial.price||'', discountPrice: initial.discountPrice||'',
     stock: initial.stock??'',
     category: initCatId, sku: initial.sku||'', tags: Array.isArray(initial.tags) ? initial.tags.join(', ') : (initial.tags||''),
-    isFeatured: initial.isFeatured||false, isPublished: initial.isPublished!==false,
+    isFeatured: initial.isFeatured||false, isHotDeal: initial.isHotDeal||false, isPublished: initial.isPublished!==false,
     returnable: initial.returnable !== false, returnWindow: initial.returnWindow || 7,
     taxLabel: 'No Tax', taxRate: 0,
     employee: initEmployeeId,
@@ -1536,7 +1536,7 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
         </div>
 
         <div style={{ display:'flex', gap:24, marginTop:16, flexWrap:'wrap', alignItems:'center' }}>
-          {[['isFeatured','Mark as Featured'],['isPublished','Publish immediately']].map(([k,l])=>(
+          {[['isFeatured','Mark as Featured'],['isHotDeal','🔥 Hot Deal (show in Hot Deals)'],['isPublished','Publish immediately']].map(([k,l])=>(
             <label key={k} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontWeight:600, fontSize:13, color:C.sub }}>
               <input type="checkbox" checked={form[k]} onChange={e=>set(k,e.target.checked)} />
               {l}
