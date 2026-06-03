@@ -27,9 +27,6 @@ app.use(helmet());
 // `credentials: true` requires an exact origin echo (no wildcards), which is
 // why we match against an allowlist and return the caller's own Origin.
 const DEFAULT_ALLOWED_ORIGINS = [
-  "http://localhost:3000",
-  "https://e-commerce-frontend-9vtd.onrender.com",
-  "https://tradeenginee.cloud",
   "https://tradengine.com.np",
   "https://www.tradengine.com.np",
 ];

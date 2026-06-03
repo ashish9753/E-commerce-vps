@@ -5,7 +5,7 @@ import axios from 'axios';
 // VITE_API_BASE_URL in `.env`.
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  'https://tradeenginee.cloud/api/v1';
+  'https://tradengine.com.np/api/v1';
 
 const BASE_URL = API_BASE_URL;
 
