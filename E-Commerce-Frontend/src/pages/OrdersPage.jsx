@@ -488,10 +488,14 @@ export default function OrdersPage() {
 
                   {/* Order items */}
                   <div style={{ padding:'16px 20px' }}>
-                    {(order.orderItems || []).map((item, i) => (
+                    {(order.orderItems || []).map((item, i) => {
+                      const productId = item.product?._id || item.product;
+                      const openProduct = () => productId && navigate(`/product/${productId}`);
+                      return (
                       <div key={i} className="ord-item" style={{ display:'flex', gap:16, padding:'12px 0', borderBottom:i<order.orderItems.length-1?'1px solid #f0f0f0':'none', alignItems:'flex-start' }}>
                         {/* Image */}
-                        <div style={{ width:80, height:80, border:'1px solid #ddd', borderRadius:6, overflow:'hidden', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', background:'#fafafa' }}>
+                        <div onClick={openProduct} title={productId ? 'View product' : undefined}
+                          style={{ width:80, height:80, border:'1px solid #ddd', borderRadius:6, overflow:'hidden', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', background:'#fafafa', cursor: productId ? 'pointer' : 'default' }}>
                           {item.image
                             ? <img src={item.image} alt={item.title} style={{ width:'100%', height:'100%', objectFit:'contain' }} />
                             : <span style={{ fontSize:32 }}>🛍️</span>
@@ -500,7 +504,10 @@ export default function OrdersPage() {
 
                         {/* Details */}
                         <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ fontWeight:600, fontSize:14, marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>
+                          <div onClick={openProduct} title={productId ? 'View product' : undefined}
+                            style={{ fontWeight:600, fontSize:14, marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', cursor: productId ? 'pointer' : 'default' }}
+                            onMouseEnter={e => { if (productId) e.currentTarget.style.color = '#c45500'; }}
+                            onMouseLeave={e => { e.currentTarget.style.color = ''; }}>
                             {item.title}
                           </div>
                           {item.color && (
@@ -562,7 +569,8 @@ export default function OrdersPage() {
                           );
                         })()}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Footer */}
