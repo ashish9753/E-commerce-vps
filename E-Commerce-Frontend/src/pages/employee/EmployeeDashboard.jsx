@@ -2336,6 +2336,10 @@ function EmployeeSettingsTab() {
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
 
+  const [dlv, setDlv] = useState(null);
+  const [dlvSaving, setDlvSaving] = useState(false);
+  const [dlvSaved,  setDlvSaved]  = useState(false);
+
   useEffect(() => {
     settingsApi.getCodSettings()
       .then(r => {
@@ -2350,9 +2354,20 @@ function EmployeeSettingsTab() {
         });
       })
       .catch(() => {});
+    settingsApi.getDeliverySettings()
+      .then(r => {
+        const s = r.data?.data?.deliverySettings || {};
+        setDlv({
+          defaultCharge:        s.defaultCharge        ?? 50,
+          freeThresholdEnabled: s.freeThresholdEnabled ?? true,
+          freeThreshold:        s.freeThreshold        ?? 500,
+        });
+      })
+      .catch(() => {});
   }, []);
 
   const set = (k, v) => setCfg(prev => ({ ...prev, [k]: v }));
+  const setD = (k, v) => setDlv(prev => ({ ...prev, [k]: v }));
 
   const save = async () => {
     setSaving(true);
@@ -2361,7 +2376,14 @@ function EmployeeSettingsTab() {
     setTimeout(() => setSaved(false), 2500);
   };
 
-  if (!cfg) return <div style={{ padding: 40, textAlign: 'center', color: C.mute }}>Loading settings…</div>;
+  const saveDlv = async () => {
+    setDlvSaving(true);
+    await settingsApi.updateDeliverySettings(dlv).catch(() => {});
+    setDlvSaving(false); setDlvSaved(true);
+    setTimeout(() => setDlvSaved(false), 2500);
+  };
+
+  if (!cfg || !dlv) return <div style={{ padding: 40, textAlign: 'center', color: C.mute }}>Loading settings…</div>;
 
   const inp = {
     width: '100%', height: 40, padding: '0 12px',
@@ -2461,6 +2483,73 @@ function EmployeeSettingsTab() {
             {saving ? 'Saving…' : 'Save Settings'}
           </Btn>
           {saved && <span style={{ color: C.green, fontWeight: 600, fontSize: 13 }}>✓ Saved</span>}
+        </div>
+      </div>
+
+      {/* ══ Delivery Charge Settings ══ */}
+      <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.line}`, overflow: 'hidden', marginTop: 18 }}>
+
+        {/* Header */}
+        <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.line}` }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 2 }}>Delivery Charges</div>
+          <div style={{ fontSize: 11.5, color: C.mute }}>Default delivery fee when no per-city delivery area or courier rate applies.</div>
+        </div>
+
+        {/* Default charge */}
+        <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.line}` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div>
+              <label style={lbl}>Default Delivery Charge (Rs.)</label>
+              <input type="number" min="0"
+                value={dlv.defaultCharge === 0 ? '' : dlv.defaultCharge}
+                placeholder="e.g. 100"
+                onChange={e => setD('defaultCharge', e.target.value === '' ? 0 : Number(e.target.value))}
+                style={inp} />
+              <div style={{ fontSize: 11, color: C.mute, marginTop: 5 }}>Charged when below the free-delivery threshold.</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Free delivery toggle */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: `1px solid ${C.line}` }}>
+          <div style={{ padding: '18px 22px', borderRight: dlv.freeThresholdEnabled ? `1px solid ${C.line}` : 'none' }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 2 }}>Free Delivery Threshold</div>
+            <div style={{ fontSize: 11.5, color: C.mute, marginBottom: 14 }}>Waive delivery charge when order total meets or exceeds the threshold.</div>
+            <Toggle on={dlv.freeThresholdEnabled} onChange={() => setD('freeThresholdEnabled', !dlv.freeThresholdEnabled)} />
+          </div>
+          {dlv.freeThresholdEnabled && (
+            <div style={{ padding: '18px 22px' }}>
+              <label style={lbl}>Free Delivery Above (Rs.)</label>
+              <input type="number" min="0"
+                value={dlv.freeThreshold === 0 ? '' : dlv.freeThreshold}
+                placeholder="e.g. 1000"
+                onChange={e => setD('freeThreshold', e.target.value === '' ? 0 : Number(e.target.value))}
+                style={inp} />
+            </div>
+          )}
+        </div>
+
+        {/* Preview */}
+        <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.line}` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ background: C.accent + '12', border: `1px solid ${C.accent}30`, borderRadius: 8, padding: '12px 14px' }}>
+              <div style={{ fontSize: 10.5, fontWeight: 600, color: C.accent, textTransform: 'uppercase', letterSpacing: '.07em', marginBottom: 6 }}>Preview</div>
+              <div style={{ fontSize: 13, color: C.text, lineHeight: 1.8 }}>
+                <div>Delivery charge: <strong>Rs. {Number(dlv.defaultCharge || 0).toLocaleString('en-NP')}</strong></div>
+                {dlv.freeThresholdEnabled
+                  ? <div style={{ color: C.green }}>Free above Rs. {Number(dlv.freeThreshold || 0).toLocaleString('en-NP')}</div>
+                  : <div style={{ color: C.mute }}>No free-delivery threshold</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 22px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Btn variant="primary" onClick={saveDlv} disabled={dlvSaving} style={{ padding: '9px 26px' }}>
+            {dlvSaving ? 'Saving…' : 'Save Delivery Settings'}
+          </Btn>
+          {dlvSaved && <span style={{ color: C.green, fontWeight: 600, fontSize: 13 }}>✓ Saved</span>}
         </div>
       </div>
     </div>
@@ -3246,7 +3335,7 @@ const TAB_SUBTITLES = {
   'My Salary':      'View your monthly salary, deductions, and bonuses',
   Catalog:          'Manage brands, categories, attributes and events',
   Banners:          'Upload and manage homepage banners — with text overlays, fonts and product links',
-  Settings:         'Configure COD availability, order amount limits, and booking payments',
+  Settings:         'Configure COD availability, delivery charges, order amount limits, and booking payments',
 };
 
 export default function SellerDashboard() {

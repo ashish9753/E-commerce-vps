@@ -5,12 +5,15 @@ import { COMPANY } from "../config/company";
 // Pull invoice header values from the central company config so updating
 // office/email/phone there propagates to the generated PDF too.
 const STORE = {
-  name:    COMPANY.name,
-  tagline: COMPANY.tagline,
-  address: COMPANY.office,
-  email:   COMPANY.email,
-  phone:   `Sales ${COMPANY.salesPhone} · Support ${COMPANY.supportPhone}`,
-  website: COMPANY.website,
+  name:      COMPANY.name,
+  legalName: COMPANY.legalName || COMPANY.name,
+  regNo:     COMPANY.regNo || "",
+  tagline:   COMPANY.tagline,
+  address:   COMPANY.office,
+  email:     COMPANY.email,
+  phone:     `Sales ${COMPANY.salesPhone} · Support ${COMPANY.supportPhone}`,
+  salesPhone: COMPANY.salesPhone,
+  website:   COMPANY.website,
 };
 
 function fmtRs(n) {
@@ -39,29 +42,7 @@ function shortNum(orderNumber) {
   return orderNumber.toUpperCase();
 }
 
-// Fetch /LOGO.png once and cache the data URL so re-printing invoices in the
-// same session doesn't refetch. Returns null if the asset can't be loaded.
-let _logoDataUrl = null;
-async function loadLogoDataUrl() {
-  if (_logoDataUrl !== null) return _logoDataUrl;
-  try {
-    const res  = await fetch("/LOGO.png");
-    if (!res.ok) return (_logoDataUrl = "");
-    const blob = await res.blob();
-    _logoDataUrl = await new Promise((resolve) => {
-      const r = new FileReader();
-      r.onloadend = () => resolve(r.result);
-      r.onerror   = () => resolve("");
-      r.readAsDataURL(blob);
-    });
-    return _logoDataUrl;
-  } catch {
-    return (_logoDataUrl = "");
-  }
-}
-
 export async function generateInvoice(order, user) {
-  const logoDataUrl = await loadLogoDataUrl();
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const W      = 210;
   const margin = 14;
@@ -70,44 +51,47 @@ export async function generateInvoice(order, user) {
   const isCancelled = order.orderStatus === "CANCELLED";
   const isRefunded  = order.paymentStatus === "REFUNDED" || order.refundStatus === "COMPLETED";
 
-  // ── Header band ────────────────────────────────────────────────────────
-  doc.setFillColor(19, 25, 33);
-  doc.rect(0, 0, W, 30, "F");
+  // ── Header (clean, white background) ─────────────────────────────────────
+  // Company legal name — bold black, left aligned.
+  doc.setTextColor(20, 20, 20);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(17);
+  doc.text(STORE.legalName, margin, 13);
 
-  doc.setTextColor(255, 255, 255);
-
-  // Logo image (left) — falls back to the text name if the PNG can't load.
-  if (logoDataUrl) {
-    // 22mm tall keeps it inside the 30mm header band with breathing room.
-    doc.addImage(logoDataUrl, "PNG", margin, 4, 44, 22);
-  } else {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text(STORE.name, margin, 13);
-  }
-
+  // Contact line: phone · email · location — muted grey.
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
-  // Push the tagline + website right of the logo so they don't overlap.
-  const taglineX = logoDataUrl ? margin + 48 : margin;
-  doc.text(STORE.tagline, taglineX, 19);
-  doc.text(STORE.website, taglineX, 24);
+  doc.setTextColor(110, 110, 110);
+  const contactLine = [STORE.salesPhone, STORE.email, STORE.address]
+    .filter(Boolean)
+    .join("   ·   ");
+  doc.text(contactLine, margin, 19);
+  if (STORE.regNo) {
+    doc.text(`Reg No:  ${STORE.regNo}`, margin, 24);
+  }
 
-  // INVOICE / CANCELLED CREDIT NOTE label
+  // INVOICE / CREDIT NOTE label — dark, right aligned.
   const docLabel = isCancelled ? "CREDIT NOTE" : "INVOICE";
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
-  doc.text(docLabel, W - margin, 15, { align: "right" });
+  doc.setTextColor(20, 20, 20);
+  doc.text(docLabel, W - margin, 13, { align: "right" });
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   if (isCancelled) {
-    doc.setTextColor(255, 160, 160);
-    doc.text("ORDER CANCELLED", W - margin, 22, { align: "right" });
+    doc.setTextColor(185, 28, 28);
+    doc.text("ORDER CANCELLED", W - margin, 19, { align: "right" });
   } else {
-    doc.setTextColor(220, 220, 220);
-    doc.text("(ORIGINAL FOR RECIPIENT)", W - margin, 22, { align: "right" });
+    doc.setTextColor(130, 130, 130);
+    doc.text("(ORIGINAL FOR RECIPIENT)", W - margin, 19, { align: "right" });
   }
+
+  // Divider under the header.
+  doc.setDrawColor(210, 210, 210);
+  doc.setLineWidth(0.4);
+  doc.line(margin, 28, W - margin, 28);
+  doc.setLineWidth(0.2);
   doc.setTextColor(0, 0, 0);
 
   y = 37;
@@ -236,6 +220,21 @@ export async function generateInvoice(order, user) {
     // Strikethrough style for cancelled items
     const cellStyle = isCancelled ? { textColor: [150, 150, 150] } : {};
 
+    // Freebie line: show its retail worth so the customer sees what they got
+    // free, while the Amount column reads FREE (it doesn't add to the total).
+    if (item.isFreebie) {
+      const worth = item.freebieValue || 0;
+      const desc  = item.color ? `${item.title}\nColor: ${item.color}` : item.title;
+      const giftStyle = isCancelled ? cellStyle : { textColor: [21, 128, 61] };
+      return [
+        { content: String(i + 1), styles: giftStyle },
+        { content: `${desc}\n(Free Gift)`, styles: giftStyle },
+        { content: String(item.quantity), styles: { ...giftStyle, halign: "center" } },
+        { content: worth > 0 ? fmtRs(worth) : "—", styles: { ...giftStyle, halign: "right" } },
+        { content: "FREE", styles: { ...giftStyle, halign: "right", fontStyle: "bold" } },
+      ];
+    }
+
     return [
       { content: String(i + 1), styles: cellStyle },
       { content: item.color ? `${item.title}\nColor: ${item.color}` : item.title, styles: cellStyle },
@@ -323,6 +322,21 @@ export async function generateInvoice(order, user) {
     `Amount Chargeable (in words): ${amountToWords(isRefunded ? 0 : total)} Only`,
     margin, y
   );
+
+  // Free-gift savings note — sums the retail worth of every freebie line so the
+  // customer sees how much value the order included at no cost.
+  const freebieWorth = items.reduce(
+    (s, it) => s + (it.isFreebie ? (it.freebieValue || 0) * (it.quantity || 1) : 0),
+    0
+  );
+  if (freebieWorth > 0 && !isCancelled) {
+    y += 5;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(21, 128, 61);
+    doc.text(`You received free gift(s) worth ${fmtRs(freebieWorth)} with this order.`, margin, y);
+    doc.setTextColor(0, 0, 0);
+  }
 
   // ── Cancellation / Refund detail block ────────────────────────────────
   if (isCancelled || isRefunded) {

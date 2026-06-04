@@ -282,7 +282,14 @@ function OrderSummary({ items, subtotal, deliveryCharge, discountAmount, total, 
               <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.4, marginBottom: 3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                 {freebie.title}
               </div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>FREE</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>FREE</span>
+                {freebie.price > 0 && (
+                  <span style={{ fontSize: 11, color: '#888', textDecoration: 'line-through' }}>
+                    {formatPriceShort(freebie.price * (freebie.quantity || 1))}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         )}

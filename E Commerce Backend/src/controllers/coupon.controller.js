@@ -230,6 +230,7 @@ export const validateCoupon = async (req, res, next) => {
           title:     coupon.freebieProduct.title,
           image:     coupon.freebieProduct.images?.[0] || "",
           quantity:  coupon.freebieQuantity || 1,
+          price:     coupon.freebieProduct.discountPrice || coupon.freebieProduct.price || 0,
         }
       : null;
     const freeShipping = coupon.discountType === "FREE_SHIPPING";

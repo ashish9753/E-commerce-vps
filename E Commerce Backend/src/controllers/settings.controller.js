@@ -35,3 +35,32 @@ export const updateCodSettings = async (req, res, next) => {
     res.json(new ApiResponse(200, { codSettings: doc.value }, "COD settings updated"));
   } catch (err) { next(err); }
 };
+
+/* ─── Delivery charge settings ─── */
+
+const DELIVERY_KEY = "deliverySettings";
+
+export const DEFAULT_DELIVERY = {
+  defaultCharge: 50,
+  freeThresholdEnabled: true,
+  freeThreshold: 500,
+};
+
+export const getDeliverySettings = async (req, res, next) => {
+  try {
+    const doc = await Settings.findOne({ key: DELIVERY_KEY });
+    res.json(new ApiResponse(200, { deliverySettings: doc?.value ?? DEFAULT_DELIVERY }));
+  } catch (err) { next(err); }
+};
+
+export const updateDeliverySettings = async (req, res, next) => {
+  try {
+    const value = { ...DEFAULT_DELIVERY, ...req.body };
+    const doc = await Settings.findOneAndUpdate(
+      { key: DELIVERY_KEY },
+      { value },
+      { upsert: true, new: true }
+    );
+    res.json(new ApiResponse(200, { deliverySettings: doc.value }, "Delivery settings updated"));
+  } catch (err) { next(err); }
+};

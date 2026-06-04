@@ -195,6 +195,7 @@ export function CartProvider({ children }) {
         title:    cart.coupon.freebieProduct.title,
         image:    cart.coupon.freebieProduct.images?.[0] || '',
         quantity: cart.coupon.freebieQuantity || 1,
+        price:    cart.coupon.freebieProduct.discountPrice || cart.coupon.freebieProduct.price || 0,
       }
     : null;
   const freeShipping   = cart?.coupon?.discountType === 'FREE_SHIPPING';

@@ -11,6 +11,9 @@ const orderItemSchema = new mongoose.Schema({
   colorImage: { type: String, default: "" },
   // True when this line was added by a FREEBIE coupon (price will be 0).
   isFreebie: { type: Boolean, default: false },
+  // Per-unit retail value of a freebie line (what the customer would have paid).
+  // Recorded so invoices/receipts can show how much the gift was worth.
+  freebieValue: { type: Number, default: 0 },
 }, { _id: false });
 
 const shippingAddressSchema = new mongoose.Schema({

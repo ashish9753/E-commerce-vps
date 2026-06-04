@@ -231,9 +231,17 @@ export default function CartPage() {
                   : <span className="text-2xl">🎁</span>}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-bold tracking-widest uppercase text-accent">+ FREE</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-[10px] font-bold tracking-widest uppercase text-accent">+ FREE</div>
+                  {freebie.price > 0 && (
+                    <div className="text-[11px] text-mute line-through">{formatPriceShort(freebie.price * freebie.quantity)}</div>
+                  )}
+                </div>
                 <div className="text-sm font-bold leading-tight truncate">{freebie.title}</div>
-                <div className="text-[11px] text-mute mt-0.5">Added at checkout · Qty {freebie.quantity}</div>
+                <div className="text-[11px] text-mute mt-0.5">
+                  Added at checkout · Qty {freebie.quantity}
+                  {freebie.price > 0 && <> · <span className="text-ok font-semibold">you save {formatPriceShort(freebie.price * freebie.quantity)}</span></>}
+                </div>
               </div>
               <button
                 type="button"

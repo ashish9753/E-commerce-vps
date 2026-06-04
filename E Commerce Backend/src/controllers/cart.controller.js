@@ -63,7 +63,7 @@ export const getCart = async (req, res, next) => {
     }).populate({
       path: "coupon",
       select: "code discountType discountValue applicableBrands applicableCategories applicableSubcategories freebieProduct freebieQuantity",
-      populate: { path: "freebieProduct", select: "title images stock" },
+      populate: { path: "freebieProduct", select: "title images stock price discountPrice" },
     });
 
     if (!cart) return res.json(new ApiResponse(200, { cart: { items: [], totalItems: 0, totalPrice: 0, finalPrice: 0 } }));
@@ -206,7 +206,7 @@ export const applyCoupon = async (req, res, next) => {
     );
     if (!cart || cart.items.length === 0) throw new ApiError(400, "Cart is empty");
 
-    const coupon = await Coupon.findOne({ code }).populate("freebieProduct", "title images stock isDeleted isPublished");
+    const coupon = await Coupon.findOne({ code }).populate("freebieProduct", "title images stock price discountPrice isDeleted isPublished");
     if (!coupon) throw new ApiError(404, "Invalid coupon code");
 
     const validity = coupon.isValid(cart.totalPrice, req.user._id);
@@ -246,6 +246,7 @@ export const applyCoupon = async (req, res, next) => {
           title:    coupon.freebieProduct.title,
           image:    coupon.freebieProduct.images?.[0] || "",
           quantity: coupon.freebieQuantity || 1,
+          price:    coupon.freebieProduct.discountPrice || coupon.freebieProduct.price || 0,
         }
       : null;
     const freeShipping = coupon.discountType === "FREE_SHIPPING";

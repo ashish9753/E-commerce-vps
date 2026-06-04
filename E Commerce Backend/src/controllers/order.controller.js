@@ -4,6 +4,7 @@ import Order from "../models/order.model.js";
 import User from "../models/user.model.js";
 import Coupon from "../models/coupon.model.js";
 import DeliveryArea from "../models/deliveryArea.model.js";
+import Settings from "../models/settings.model.js";
 import { computeCouponEligibility } from "../utils/couponEligibility.utils.js";
 import Employee from "../models/employee.model.js";
 import { notify, notifyEmployee, notifyAdmins } from "../utils/notify.js";
@@ -27,8 +28,6 @@ const ORDER_STATUS_MESSAGES = {
   RETURNED:         { title: "Return Initiated ↩️",         message: "Your return has been initiated." },
 };
 
-const SHIPPING_THRESHOLD = 500;
-const SHIPPING_PRICE = 50;
 
 const VALID_ORDER_STATUSES = [
   "PLACED", "CONFIRMED", "PACKED", "SHIPPED",
@@ -244,7 +243,7 @@ export const placeOrder = async (req, res, next) => {
     //   1. Custom DeliveryArea entry matching the address's city (admin's
     //      "Custom / Fallback Delivery Areas" panel) — exact, case-insensitive
     //   2. Upaya live rate when the address has an upayaLocationId
-    //   3. Subtotal-threshold default (free over Rs. SHIPPING_THRESHOLD)
+    //   3. Admin-configured default (deliverySettings: flat charge, free over threshold)
     let shippingPrice;
     const addrCity = address.city?.trim();
     if (addrCity) {
@@ -268,7 +267,11 @@ export const placeOrder = async (req, res, next) => {
       } catch { /* fall through to default */ }
     }
     if (shippingPrice === undefined) {
-      shippingPrice = itemsPrice >= SHIPPING_THRESHOLD ? 0 : SHIPPING_PRICE;
+      const dsDoc = await Settings.findOne({ key: "deliverySettings" });
+      const ds = dsDoc?.value ?? { defaultCharge: 50, freeThresholdEnabled: true, freeThreshold: 500 };
+      shippingPrice = (ds.freeThresholdEnabled && itemsPrice >= Number(ds.freeThreshold))
+        ? 0
+        : Number(ds.defaultCharge) || 0;
     }
 
     // Coupon discount — applies to BOTH Cart and Buy Now flows.
@@ -343,6 +346,7 @@ export const placeOrder = async (req, res, next) => {
             quantity: fQty,
             price:    0,
             isFreebie: true,
+            freebieValue: fp.discountPrice || fp.price || 0,
           });
         }
       }

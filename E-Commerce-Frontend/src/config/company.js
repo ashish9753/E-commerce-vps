@@ -4,6 +4,10 @@
 
 export const COMPANY = {
   name:    'TradeEngine',
+  // Registered legal entity name + company registration number — shown on the
+  // invoice header. Update these to match your official registration.
+  legalName: 'Trade Engine Pvt. Ltd.',
+  regNo:     '609749436',
   tagline: 'Your one-stop online store',
 
   office:  'Dhalko, Kathmandu',

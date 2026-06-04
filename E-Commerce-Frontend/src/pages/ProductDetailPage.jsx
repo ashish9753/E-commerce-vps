@@ -948,11 +948,21 @@ export default function ProductDetailPage() {
                             : <span style={{ fontSize:18 }}>🎁</span>}
                         </div>
                         <div style={{ minWidth:0, flex:1 }}>
-                          <div style={{ fontSize:10, fontWeight:800, letterSpacing:'.1em', color:'#15803d', textTransform:'uppercase' }}>+ FREE</div>
+                          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                            <div style={{ fontSize:10, fontWeight:800, letterSpacing:'.1em', color:'#15803d', textTransform:'uppercase' }}>+ FREE</div>
+                            {appliedCoupon.freebie.price > 0 && (
+                              <div style={{ fontSize:10, color:'#888', textDecoration:'line-through' }}>
+                                {Rs((appliedCoupon.freebie.price) * (appliedCoupon.freebie.quantity || 1))}
+                              </div>
+                            )}
+                          </div>
                           <div style={{ fontSize:12, fontWeight:700, color:'#0F1111', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                             {appliedCoupon.freebie.title}
                           </div>
-                          <div style={{ fontSize:10, color:'#666' }}>Added at checkout · Qty {appliedCoupon.freebie.quantity || 1}</div>
+                          <div style={{ fontSize:10, color:'#666' }}>
+                            Added at checkout · Qty {appliedCoupon.freebie.quantity || 1}
+                            {appliedCoupon.freebie.price > 0 && <> · <span style={{ color:'#15803d', fontWeight:700 }}>you save {Rs((appliedCoupon.freebie.price) * (appliedCoupon.freebie.quantity || 1))}</span></>}
+                          </div>
                         </div>
                         <button
                           type="button"
