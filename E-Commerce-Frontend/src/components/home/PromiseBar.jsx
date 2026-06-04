@@ -1,11 +1,19 @@
-const items = [
-  { ic: '🚚', name: 'Free Delivery', dsc: 'On orders above Rs. 5,000 in Kathmandu Valley' },
-  { ic: '🛡️', name: 'Authorized Warranty', dsc: 'Brand warranty on every product we sell' },
-  { ic: '🔄', name: 'Easy Returns', dsc: '7-day hassle-free return via our portal' },
-  { ic: '📞', name: '24/7 Support', dsc: 'Customer care available round the clock' },
-];
+import { useDeliverySettings } from '../../hooks/useDeliverySettings';
 
 export default function PromiseBar() {
+  const dlv = useDeliverySettings();
+  const fmt = (n) => `Rs. ${Number(n || 0).toLocaleString('en-IN')}`;
+  const deliveryDsc = dlv.freeThresholdEnabled
+    ? `On orders above ${fmt(dlv.freeThreshold)}`
+    : `Flat ${fmt(dlv.defaultCharge)} delivery`;
+
+  const items = [
+    { ic: '🚚', name: dlv.freeThresholdEnabled ? 'Free Delivery' : 'Fast Delivery', dsc: deliveryDsc },
+    { ic: '🛡️', name: 'Authorized Warranty', dsc: 'Brand warranty on every product we sell' },
+    { ic: '🔄', name: 'Easy Returns', dsc: '7-day hassle-free return via our portal' },
+    { ic: '📞', name: '24/7 Support', dsc: 'Customer care available round the clock' },
+  ];
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 12 }}>
       {items.map((item, i) => (

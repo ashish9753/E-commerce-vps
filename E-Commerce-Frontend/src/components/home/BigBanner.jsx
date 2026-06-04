@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDeliverySettings } from '../../hooks/useDeliverySettings';
 
 export default function BigBanner() {
   const navigate = useNavigate();
+  const dlv = useDeliverySettings();
+  const deliveryLine = dlv.freeThresholdEnabled
+    ? `Free delivery on all orders above Rs. ${Number(dlv.freeThreshold || 0).toLocaleString('en-IN')}.`
+    : `Flat Rs. ${Number(dlv.defaultCharge || 0).toLocaleString('en-IN')} delivery on all orders.`;
   const TARGET = Date.now() + (2 * 24 + 7) * 3600 * 1000 + 42 * 60 * 1000;
   const [time, setTime] = useState({ d: '02', h: '07', m: '42', s: '00' });
 
@@ -34,7 +39,7 @@ export default function BigBanner() {
           Best deals, <span style={{ color: '#FF5A1F' }}>limited</span> time
         </h2>
         <p style={{ color: 'rgba(255,255,255,.55)', fontSize: 14, margin: '0 0 20px', maxWidth: 400 }}>
-          Up to 50% off on top brands. Free delivery on all orders above Rs. 5,000.
+          Up to 50% off on top brands. {deliveryLine}
         </p>
         <button onClick={() => navigate('/products')}
           style={{ background: '#FF5A1F', color: 'white', border: 'none', borderRadius: 6,

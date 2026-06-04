@@ -10,6 +10,7 @@ import { productsApi } from '../api/products';
 import { reviewsApi } from '../api/reviews';
 import { deliveryAreasApi } from '../api/deliveryAreas';
 import { upayaApi } from '../api/upaya';
+import { useDeliverySettings } from '../hooks/useDeliverySettings';
 import { normalizeProduct, normalizeProducts } from '../utils/normalizers';
 import { formatPriceShort, stars } from '../utils/formatters';
 import ProductCard from '../components/product/ProductCard';
@@ -71,6 +72,8 @@ export default function ProductDetailPage() {
   const [locationResult, setLocationResult] = useState(null); // { available, city, deliveryCharge } | null
   const [locationChecking, setLocationChecking] = useState(false);
   const [areaSuggestions, setAreaSuggestions]   = useState([]); // active service areas for autocomplete
+  // Admin-configured delivery defaults (for the "free above Rs. X" copy).
+  const deliveryCfg = useDeliverySettings();
 
   const [couponCode, setCouponCode]   = useState('');
   const [couponLoading, setCouponLoading] = useState(false);
@@ -201,14 +204,19 @@ export default function ProductDetailPage() {
     return () => { mounted = false; };
   }, []);
 
-  // Auto-check using saved address city when user is logged in
+  // Auto-check using saved address city when user is logged in. Also re-runs
+  // once the Upaya/custom area suggestions finish loading — without this, an
+  // Upaya-only city (which the custom-area backend check doesn't know about)
+  // races ahead of the suggestions and wrongly shows "not available".
   useEffect(() => {
     const savedCity = user?.addresses?.[0]?.city;
-    if (savedCity && savedCity.trim()) {
-      setLocation(savedCity);
-      checkLocation(savedCity);
-    }
-  }, [user]);
+    if (!savedCity || !savedCity.trim()) return;
+    // Don't clobber a different city the user is actively typing.
+    if (location && location.trim().toLowerCase() !== savedCity.trim().toLowerCase()) return;
+    setLocation(savedCity);
+    checkLocation(savedCity);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, areaSuggestions]);
 
   useEffect(() => {
     setLoading(true);
@@ -706,7 +714,9 @@ export default function ProductDetailPage() {
               {[
                 { icon:<ShieldCheck size={22} color="#555" />, line1:'Warranty', line2:'Brand authorized' },
                 { icon:<RefreshCw size={22} color="#555" />, line1: product.returnable===false ? 'Non-returnable' : `${product.returnWindow||7} Day`, line2: product.returnable===false ? '' : 'Easy Return' },
-                { icon:<Truck size={22} color="#555" />, line1:'Free Delivery', line2:'Orders above Rs.5,000' },
+                deliveryCfg.freeThresholdEnabled
+                  ? { icon:<Truck size={22} color="#555" />, line1:'Free Delivery', line2:`Orders above ${Rs(deliveryCfg.freeThreshold)}` }
+                  : { icon:<Truck size={22} color="#555" />, line1:'Delivery', line2:`Flat ${Rs(deliveryCfg.defaultCharge)}` },
                 { icon:<Star size={22} color="#555" />, line1:'Top Brand', line2:'Authorized seller' },
               ].map((b, i) => (
                 <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4, minWidth:70, textAlign:'center' }}>
@@ -817,8 +827,17 @@ export default function ProductDetailPage() {
 
               {/* Delivery */}
               <div style={{ fontSize:13, marginBottom:10 }}>
-                <span style={{ color:'#555' }}>FREE delivery </span>
-                <span style={{ fontWeight:600, color:'#0F1111' }}>on orders above Rs. 5,000</span>
+                {deliveryCfg.freeThresholdEnabled ? (
+                  <>
+                    <span style={{ color:'#555' }}>FREE delivery </span>
+                    <span style={{ fontWeight:600, color:'#0F1111' }}>on orders above {Rs(deliveryCfg.freeThreshold)}</span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ color:'#555' }}>Delivery charge: </span>
+                    <span style={{ fontWeight:600, color:'#0F1111' }}>{Rs(deliveryCfg.defaultCharge)}</span>
+                  </>
+                )}
               </div>
 
               {/* Delivery-by-location checker */}

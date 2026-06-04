@@ -5,10 +5,15 @@ import MobileBottomNav from './MobileBottomNav';
 import { useCatalog } from '../../context/CatalogContext';
 import { couponsApi } from '../../api/coupons';
 import { cached } from '../../utils/apiCache';
+import { useDeliverySettings } from '../../hooks/useDeliverySettings';
 
 function AnnouncementBar() {
   const { events } = useCatalog();
   const [coupons, setCoupons] = useState([]);
+  const dlv = useDeliverySettings();
+  const deliveryMsg = dlv.freeThresholdEnabled
+    ? `🚚 Free Delivery on orders above Rs. ${Number(dlv.freeThreshold || 0).toLocaleString('en-IN')}`
+    : `🚚 Flat Rs. ${Number(dlv.defaultCharge || 0).toLocaleString('en-IN')} delivery`;
 
   useEffect(() => {
     cached(
@@ -24,7 +29,7 @@ function AnnouncementBar() {
   const items = [
     ...events.slice(0, 3).map(e => `🎉 ${e.name}${e.discount ? ` — Up to ${e.discount}% OFF` : ''}`),
     ...coupons.map(c => `🏷️ Use code ${c.code} — ${c.discountType === 'PERCENTAGE' ? `${c.discountValue}% off` : `Rs. ${c.discountValue} off`}`),
-    '🚚 Free Delivery on orders above Rs. 5,000',
+    deliveryMsg,
     '🔥 Flash Sale Ends Tonight!',
   ];
   const doubled = [...items, ...items];

@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { cartApi } from '../api/cart';
-import { settingsApi } from '../api/settings';
 import { getErrorMessage } from '../api/client';
+import { useDeliverySettings } from '../hooks/useDeliverySettings';
 import { useAuth } from './AuthContext';
 
 const CartContext = createContext(null);
@@ -30,21 +30,7 @@ export function CartProvider({ children }) {
 
   // Admin-configured delivery defaults (fallback estimate shown before an
   // address-specific rate is known). Mirrors the backend's DEFAULT_DELIVERY.
-  const [deliveryCfg, setDeliveryCfg] = useState({
-    defaultCharge: 50, freeThresholdEnabled: true, freeThreshold: 500,
-  });
-  useEffect(() => {
-    settingsApi.getDeliverySettings()
-      .then(r => {
-        const s = r.data?.data?.deliverySettings;
-        if (s) setDeliveryCfg({
-          defaultCharge:        Number(s.defaultCharge) || 0,
-          freeThresholdEnabled: s.freeThresholdEnabled ?? true,
-          freeThreshold:        Number(s.freeThreshold) || 0,
-        });
-      })
-      .catch(() => {});
-  }, []);
+  const deliveryCfg = useDeliverySettings();
 
   const fetchCart = useCallback(async () => {
     if (!user) { setCart(null); return; }
