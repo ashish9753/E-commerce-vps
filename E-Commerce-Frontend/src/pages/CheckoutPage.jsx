@@ -315,7 +315,7 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const buyNow   = location.state?.buyNow || null;          // set when coming from "Buy Now"
-  const { items, subtotal, total, deliveryCharge, discountAmount, clearCart, cart, freeShipping, freebie } = useCart();
+  const { items, subtotal, total, deliveryCharge, discountAmount, clearCart, cart, freeShipping, freebie, deliveryCfg } = useCart();
 
   // For Buy Now, the coupon may come from either the PDP "Have a coupon?"
   // (passed via navigation state) or the user's cart-level coupon. We ask the
@@ -383,7 +383,10 @@ export default function CheckoutPage() {
   //   3. The cart context's default / Buy-Now threshold fallback
   const effectiveFreeShipping = freeShipping || buyNowFreeShipping;
   const effectiveFreebie      = buyNow ? buyNowFreebie : freebie;
-  const cartLevelDelivery = buyNow ? (checkoutSubtotal >= 5000 ? 0 : 120) : deliveryCharge;
+  const buyNowDelivery    = (deliveryCfg?.freeThresholdEnabled && checkoutSubtotal >= deliveryCfg.freeThreshold)
+    ? 0
+    : (deliveryCfg?.defaultCharge ?? 0);
+  const cartLevelDelivery = buyNow ? buyNowDelivery : deliveryCharge;
   const addressDelivery   = deliveryCheck?.available && typeof deliveryCheck.deliveryCharge === 'number'
     ? deliveryCheck.deliveryCharge
     : null;

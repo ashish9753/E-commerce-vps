@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { cartApi } from '../api/cart';
+import { settingsApi } from '../api/settings';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from './AuthContext';
 
@@ -26,6 +27,24 @@ export function CartProvider({ children }) {
   // We send `latest` after DEBOUNCE_MS of inactivity, then clear the entry.
   // 0 means "remove this line" — fired immediately, no debounce.
   const pendingRef = useRef({});  // pid -> { qty, timer }
+
+  // Admin-configured delivery defaults (fallback estimate shown before an
+  // address-specific rate is known). Mirrors the backend's DEFAULT_DELIVERY.
+  const [deliveryCfg, setDeliveryCfg] = useState({
+    defaultCharge: 50, freeThresholdEnabled: true, freeThreshold: 500,
+  });
+  useEffect(() => {
+    settingsApi.getDeliverySettings()
+      .then(r => {
+        const s = r.data?.data?.deliverySettings;
+        if (s) setDeliveryCfg({
+          defaultCharge:        Number(s.defaultCharge) || 0,
+          freeThresholdEnabled: s.freeThresholdEnabled ?? true,
+          freeThreshold:        Number(s.freeThreshold) || 0,
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchCart = useCallback(async () => {
     if (!user) { setCart(null); return; }
@@ -199,13 +218,16 @@ export function CartProvider({ children }) {
       }
     : null;
   const freeShipping   = cart?.coupon?.discountType === 'FREE_SHIPPING';
-  const baseDelivery   = subtotal >= 5000 ? 0 : 120;
+  const baseDelivery   = (deliveryCfg.freeThresholdEnabled && subtotal >= deliveryCfg.freeThreshold)
+    ? 0
+    : deliveryCfg.defaultCharge;
   const deliveryCharge = freeShipping ? 0 : baseDelivery;
   const total          = finalPrice + deliveryCharge;
 
   return (
     <CartContext.Provider value={{
       cart, items, count, subtotal, discountAmount, finalPrice, deliveryCharge, total, loading, freebie, freeShipping,
+      deliveryCfg,
       addToCart, removeFromCart, removeFromCartNow, updateQty, clearCart,
       applyCoupon, removeCoupon, fetchCart, syncCart,
     }}>
