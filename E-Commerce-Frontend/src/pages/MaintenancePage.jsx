@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { COMPANY, COMPANY_LINKS } from '../config/company';
 
 export default function MaintenancePage() {
   const [dots, setDots] = useState('');
@@ -56,38 +57,9 @@ export default function MaintenancePage() {
         className="relative z-10 flex flex-col items-center text-center"
         style={{ maxWidth: 640, width: '100%' }}
       >
-        {/* Logo mark */}
-        <div className="mb-8 flex items-center gap-3">
-          <div
-            style={{
-              width: 44,
-              height: 44,
-              background: '#FF5A1F',
-              borderRadius: 10,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M3 6h18M3 12h18M3 18h12"
-                stroke="#fff"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-          <span
-            style={{
-              fontSize: 22,
-              fontWeight: 700,
-              letterSpacing: '-0.5px',
-              color: '#fff',
-            }}
-          >
-            Trade Engine
-          </span>
+        {/* Logo */}
+        <div className="mb-8">
+          <img src="/LOGO.png" alt="Trade Engine" style={{ height: 48, width: 'auto' }} />
         </div>
 
         {/* Divider line */}
@@ -191,10 +163,10 @@ export default function MaintenancePage() {
           </svg>
           <span>Questions? Reach us at</span>
           <a
-            href="mailto:support@tradeengine.com.np"
+            href={COMPANY_LINKS.emailLink}
             style={{ color: '#FF5A1F', textDecoration: 'none', fontWeight: 600 }}
           >
-            support@tradeengine.com.np
+            {COMPANY.email}
           </a>
         </div>
       </div>
