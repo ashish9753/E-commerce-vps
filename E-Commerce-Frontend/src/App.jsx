@@ -1,3 +1,8 @@
+// ── MAINTENANCE MODE: set to false to restore the full site ──────────────────
+import MaintenancePage from './pages/MaintenancePage';
+const MAINTENANCE_MODE = true;
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
@@ -130,6 +135,8 @@ function GuestRoute({ children }) {
 }
 
 export default function App() {
+  if (MAINTENANCE_MODE) return <MaintenancePage />;
+
   return (
     <BrowserRouter>
       <ScrollToTop />
