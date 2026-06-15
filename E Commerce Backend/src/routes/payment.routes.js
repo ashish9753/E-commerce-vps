@@ -1,20 +1,20 @@
 import { Router } from "express";
 import {
-  createRazorpayOrder, createBookingOrder, verifyRazorpayPayment,
-  getPaymentByOrder, getAllPayments,
+  submitPaymentProof, reviewPayment, getPaymentByOrder,
 } from "../controllers/payment.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
 import { authorize } from "../middleware/role.middleware.js";
+import { uploadPaymentProof } from "../middleware/upload.middleware.js";
 
 const router = Router();
 
 router.use(protect);
 
-router.post("/razorpay/create-order", createRazorpayOrder);
-router.post("/razorpay/create-booking", createBookingOrder);
-router.post("/razorpay/verify", verifyRazorpayPayment);
+// Customer uploads a FonePay payment screenshot for their order
+router.post("/proof/:orderId", uploadPaymentProof("screenshot"), submitPaymentProof);
 router.get("/order/:orderId", getPaymentByOrder);
 
-router.get("/", authorize("admin"), getAllPayments);
+// Admin/employee verify (accept/reject) the uploaded screenshot
+router.patch("/:orderId/review", authorize("admin", "employee"), reviewPayment);
 
 export default router;

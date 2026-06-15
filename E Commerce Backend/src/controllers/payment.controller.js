@@ -1,197 +1,230 @@
-import Razorpay from "razorpay";
-import crypto from "crypto";
 import Order from "../models/order.model.js";
-import Payment from "../models/payment.model.js";
 import Employee from "../models/employee.model.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import { notify, notifyAdmins } from "../utils/notify.js";
+import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.utils.js";
 
-let _razorpay = null;
-const getRazorpay = () => {
-  if (!_razorpay) {
-    if (!process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID.startsWith('rzp_test_dummy')) {
-      throw new ApiError(503, "Online payments are disabled in this environment");
-    }
-    _razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_KEY_SECRET,
-    });
-  }
-  return _razorpay;
+/**
+ * FonePay manual-payment flow.
+ *
+ * There is no online gateway. Customers scan a static FonePay QR, pay from
+ * their own banking/wallet app, then upload a screenshot of the successful
+ * transaction. Admin/employee verify the screenshot and either accept the
+ * payment (order → PAID) or reject it (fake / not received).
+ *
+ * The same upload + review pair handles two cases, branching on the order's
+ * paymentMethod:
+ *   • ONLINE  → the full order amount (paymentProof / paymentReviewStatus)
+ *   • COD     → the non-refundable booking advance (codBookingScreenshot /
+ *               codBookingStatus)
+ */
+
+const notifyStaffNewPayment = async (order, kind) => {
+  // Tell every employee + all admins that a payment screenshot is waiting to
+  // be verified. Best-effort — never blocks the customer response.
+  setImmediate(async () => {
+    try {
+      const allEmployees = await Employee.find({}).select("user").lean();
+      for (const emp of allEmployees) {
+        if (emp.user) {
+          await notify({
+            userId:  emp.user,
+            title:   "Payment Awaiting Verification 🧾",
+            message: `Order #${order.orderNumber}${kind === "booking" ? " (COD booking)" : ""} has a payment screenshot to verify.`,
+            type:    "PAYMENT",
+            link:    "/employee",
+          });
+        }
+      }
+      await notifyAdmins({
+        title:   "Payment Awaiting Verification 🧾",
+        message: `Order #${order.orderNumber}${kind === "booking" ? " (COD booking)" : ""} — customer uploaded a FonePay screenshot. Please verify.`,
+        type:    "PAYMENT",
+        link:    "/admin",
+      });
+    } catch { /* non-critical */ }
+  });
 };
 
-export const createBookingOrder = async (req, res, next) => {
+/**
+ * Customer uploads a FonePay payment screenshot for one of their orders.
+ * POST /payments/proof/:orderId  (multipart, field "screenshot")
+ */
+export const submitPaymentProof = async (req, res, next) => {
   try {
-    const amt = Number(req.body?.amount);
-    if (!Number.isFinite(amt) || amt <= 0) throw new ApiError(400, "Invalid booking amount");
-    // Sanity cap — booking should never exceed 1 lakh; protects against malformed clients
-    if (amt > 100000) throw new ApiError(400, "Booking amount exceeds allowed limit");
-
-    const razorpayOrder = await getRazorpay().orders.create({
-      amount: Math.round(amt * 100),
-      currency: "INR",
-      receipt: `bkg_${Date.now().toString().slice(-10)}`,
-      notes: { type: "cod_booking", userId: req.user._id.toString() },
-    });
-
-    res.json(new ApiResponse(200, {
-      razorpayOrderId: razorpayOrder.id,
-      amount: razorpayOrder.amount,
-      currency: razorpayOrder.currency,
-      keyId: process.env.RAZORPAY_KEY_ID,
-    }));
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const createRazorpayOrder = async (req, res, next) => {
-  try {
-    const { orderId } = req.body;
-    const order = await Order.findById(orderId);
-    if (!order) throw new ApiError(404, "Order not found");
-    if (order.user.toString() !== req.user._id.toString()) throw new ApiError(403, "Access denied");
-    if (order.paymentStatus === "PAID") throw new ApiError(400, "Order already paid");
-
-    const razorpayOrder = await getRazorpay().orders.create({
-      amount: Math.round(order.totalPrice * 100),
-      currency: "INR",
-      receipt: order.orderNumber,
-      notes: { orderId: order._id.toString(), userId: req.user._id.toString() },
-    });
-
-    await Payment.findOneAndUpdate(
-      { order: orderId },
-      {
-        order: orderId,
-        user: req.user._id,
-        paymentGateway: "RAZORPAY",
-        razorpayOrderId: razorpayOrder.id,
-        amount: order.totalPrice,
-        paymentStatus: "PENDING",
-      },
-      { upsert: true, new: true }
-    );
-
-    res.json(new ApiResponse(200, {
-      razorpayOrderId: razorpayOrder.id,
-      amount: razorpayOrder.amount,
-      currency: razorpayOrder.currency,
-      keyId: process.env.RAZORPAY_KEY_ID,
-    }));
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const verifyRazorpayPayment = async (req, res, next) => {
-  try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      throw new ApiError(400, "Missing payment verification parameters");
-    }
-
-    // Constant-time HMAC compare to avoid timing attacks
-    const expected = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest("hex");
-    const expectedBuf = Buffer.from(expected, "hex");
-    const givenBuf = Buffer.from(razorpay_signature || "", "hex");
-    const signatureOk = expectedBuf.length === givenBuf.length &&
-      crypto.timingSafeEqual(expectedBuf, givenBuf);
-
-    if (!signatureOk) {
-      await Payment.findOneAndUpdate(
-        { razorpayOrderId: razorpay_order_id },
-        { paymentStatus: "FAILED", failureReason: "Signature mismatch" }
-      );
-      throw new ApiError(400, "Payment verification failed");
-    }
-
-    // Resolve order from the Payment record (server-side) rather than trusting client orderId.
-    const payment = await Payment.findOne({ razorpayOrderId: razorpay_order_id });
-    if (!payment) throw new ApiError(404, "Payment record not found");
-    if (payment.user.toString() !== req.user._id.toString()) {
-      throw new ApiError(403, "This payment does not belong to you");
-    }
-    if (payment.paymentStatus === "SUCCESS") {
-      // Idempotent — already verified
-      const existingOrder = await Order.findById(payment.order);
-      return res.json(new ApiResponse(200, { payment, order: existingOrder }, "Payment already verified"));
-    }
-
-    const order = await Order.findById(payment.order);
+    const order = await Order.findById(req.params.orderId);
     if (!order) throw new ApiError(404, "Order not found");
     if (order.user.toString() !== req.user._id.toString()) {
-      throw new ApiError(403, "Order does not belong to you");
+      throw new ApiError(403, "This order does not belong to you");
+    }
+    if (!req.file) throw new ApiError(400, "Payment screenshot is required");
+    if (["CANCELLED", "RETURNED"].includes(order.orderStatus)) {
+      throw new ApiError(400, "Cannot submit payment for this order");
     }
 
-    payment.razorpayPaymentId = razorpay_payment_id;
-    payment.razorpaySignature = razorpay_signature;
-    payment.transactionId = razorpay_payment_id;
-    payment.paymentStatus = "SUCCESS";
-    payment.paidAt = new Date();
-    await payment.save();
+    const result = await uploadToCloudinary(req.file.buffer, "orders/payment-proof");
+    const proof = {
+      url:        result.secure_url,
+      publicId:   result.public_id,
+      uploadedAt: new Date(),
+    };
 
-    order.paymentStatus = "PAID";
-    order.paidAt = new Date();
+    if (order.paymentMethod === "ONLINE") {
+      if (order.paymentStatus === "PAID") throw new ApiError(400, "Order is already paid");
+      // Replace any previous (e.g. rejected) screenshot.
+      if (order.paymentProof?.publicId) {
+        deleteFromCloudinary(order.paymentProof.publicId).catch(() => {});
+      }
+      order.paymentProof        = proof;
+      order.paymentReviewStatus = "PENDING_REVIEW";
+      order.paymentReviewNote   = "";
+      order.paymentReviewedAt   = null;
+      await order.save();
+      await notifyStaffNewPayment(order, "online");
+      return res.json(new ApiResponse(200, { order }, "Payment screenshot submitted — awaiting verification"));
+    }
+
+    // COD booking advance
+    if (order.codBookingAmount <= 0) {
+      throw new ApiError(400, "This order has no booking advance to pay");
+    }
+    if (order.codBookingStatus === "PAID") throw new ApiError(400, "Booking advance is already verified");
+    if (order.codBookingScreenshot?.publicId) {
+      deleteFromCloudinary(order.codBookingScreenshot.publicId).catch(() => {});
+    }
+    order.codBookingScreenshot = proof;
+    order.codBookingStatus     = "PENDING";
     await order.save();
-
-    // Notify all employees + admins now that payment is confirmed
-    setImmediate(async () => {
-      try {
-        const allEmployees = await Employee.find({}).select("user").lean();
-        for (const emp of allEmployees) {
-          if (emp.user) {
-            await notify({
-              userId:  emp.user,
-              title:   "New Order Received! 📦",
-              message: `Order #${order.orderNumber} has been placed and payment confirmed. Please confirm and process it.`,
-              type:    "ORDER",
-              link:    "/employee",
-            });
-          }
-        }
-        await notifyAdmins({
-          title:   "Payment Received 💳",
-          message: `Order #${order.orderNumber} (₹${order.totalPrice}) — online payment confirmed.`,
-          type:    "PAYMENT",
-          link:    "/admin",
-        });
-      } catch { /* non-critical */ }
-    });
-
-    res.json(new ApiResponse(200, { payment, order }, "Payment verified successfully"));
+    await notifyStaffNewPayment(order, "booking");
+    res.json(new ApiResponse(200, { order }, "Booking screenshot submitted — awaiting verification"));
   } catch (err) {
     next(err);
   }
 };
 
+/**
+ * Admin/employee accepts or rejects a customer's payment screenshot.
+ * PATCH /payments/:orderId/review   body: { action: "accept"|"reject", note }
+ */
+export const reviewPayment = async (req, res, next) => {
+  try {
+    const { action, note } = req.body;
+    if (!["accept", "reject"].includes(action)) {
+      throw new ApiError(400, "action must be 'accept' or 'reject'");
+    }
+    const order = await Order.findById(req.params.orderId);
+    if (!order) throw new ApiError(404, "Order not found");
+
+    const reviewNote = typeof note === "string" ? note.trim().slice(0, 500) : "";
+
+    if (order.paymentMethod === "ONLINE") {
+      if (!order.paymentProof?.url) throw new ApiError(400, "No payment screenshot to review");
+      if (order.paymentStatus === "PAID") throw new ApiError(400, "Order is already paid");
+
+      if (action === "accept") {
+        order.paymentStatus       = "PAID";
+        order.paidAt              = new Date();
+        order.paymentReviewStatus = "VERIFIED";
+        order.paymentReviewNote   = reviewNote;
+        order.paymentReviewedAt   = new Date();
+        await order.save();
+
+        // Now that payment is confirmed, notify staff this is a live order
+        setImmediate(async () => {
+          try {
+            const allEmployees = await Employee.find({}).select("user").lean();
+            for (const emp of allEmployees) {
+              if (emp.user) {
+                await notify({
+                  userId:  emp.user,
+                  title:   "New Order Received! 📦",
+                  message: `Order #${order.orderNumber} payment verified. Please confirm and process it.`,
+                  type:    "ORDER",
+                  link:    "/employee",
+                });
+              }
+            }
+            await notifyAdmins({
+              title:   "Payment Verified 💳",
+              message: `Order #${order.orderNumber} (Rs. ${order.totalPrice}) — FonePay payment verified.`,
+              type:    "PAYMENT",
+              link:    "/admin",
+            });
+          } catch { /* non-critical */ }
+        });
+
+        await notify({
+          userId:  order.user,
+          title:   "Payment Verified ✅",
+          message: `Your payment for order #${order.orderNumber} has been verified. Your order is now confirmed.`,
+          type:    "PAYMENT",
+          link:    "/orders",
+        });
+        return res.json(new ApiResponse(200, { order }, "Payment verified"));
+      }
+
+      // reject
+      order.paymentReviewStatus = "REJECTED";
+      order.paymentReviewNote   = reviewNote || "Payment could not be verified";
+      order.paymentReviewedAt   = new Date();
+      await order.save();
+      await notify({
+        userId:  order.user,
+        title:   "Payment Not Verified ⚠️",
+        message: `Your payment for order #${order.orderNumber} could not be verified${reviewNote ? `: ${reviewNote}` : ""}. Please re-upload a valid payment screenshot from My Orders.`,
+        type:    "PAYMENT",
+        link:    "/orders",
+      });
+      return res.json(new ApiResponse(200, { order }, "Payment rejected"));
+    }
+
+    // COD booking advance review
+    if (!order.codBookingScreenshot?.url) throw new ApiError(400, "No booking screenshot to review");
+    if (order.codBookingStatus === "PAID") throw new ApiError(400, "Booking advance already verified");
+
+    if (action === "accept") {
+      order.codBookingStatus  = "PAID";
+      order.paymentReviewNote = reviewNote;
+      await order.save();
+      await notify({
+        userId:  order.user,
+        title:   "Booking Verified ✅",
+        message: `Your booking advance for order #${order.orderNumber} has been verified.`,
+        type:    "PAYMENT",
+        link:    "/orders",
+      });
+      return res.json(new ApiResponse(200, { order }, "Booking verified"));
+    }
+
+    order.codBookingStatus  = "REJECTED";
+    order.paymentReviewNote = reviewNote || "Booking payment could not be verified";
+    await order.save();
+    await notify({
+      userId:  order.user,
+      title:   "Booking Not Verified ⚠️",
+      message: `Your booking advance for order #${order.orderNumber} could not be verified${reviewNote ? `: ${reviewNote}` : ""}. Please re-upload a valid screenshot from My Orders.`,
+      type:    "PAYMENT",
+      link:    "/orders",
+    });
+    res.json(new ApiResponse(200, { order }, "Booking rejected"));
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** Read the payment/proof info for an order (owner or staff). */
 export const getPaymentByOrder = async (req, res, next) => {
   try {
-    const payment = await Payment.findOne({ order: req.params.orderId });
-    if (!payment) throw new ApiError(404, "Payment record not found");
-    if (req.user.role !== "admin" && payment.user.toString() !== req.user._id.toString()) {
+    const order = await Order.findById(req.params.orderId)
+      .select("user paymentMethod paymentStatus paymentProof paymentReviewStatus paymentReviewNote codBookingAmount codBookingStatus codBookingScreenshot totalPrice orderNumber");
+    if (!order) throw new ApiError(404, "Order not found");
+    const isStaff = req.user.role === "admin" || req.user.role === "employee";
+    if (!isStaff && order.user.toString() !== req.user._id.toString()) {
       throw new ApiError(403, "Access denied");
     }
-    res.json(new ApiResponse(200, { payment }));
+    res.json(new ApiResponse(200, { order }));
   } catch (err) {
     next(err);
   }
 };
-
-export const getAllPayments = async (req, res, next) => {
-  try {
-    const payments = await Payment.find()
-      .populate("user", "name email")
-      .populate("order", "orderNumber totalPrice orderStatus")
-      .sort({ createdAt: -1 })
-      .limit(100);
-    res.json(new ApiResponse(200, { payments }));
-  } catch (err) {
-    next(err);
-  }
-};
-

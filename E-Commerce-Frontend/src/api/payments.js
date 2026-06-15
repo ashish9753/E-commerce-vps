@@ -1,9 +1,12 @@
 import client from './client';
 
 export const paymentsApi = {
-  createRazorpayOrder: (data) => client.post('/payments/razorpay/create-order', data),
-  createBookingOrder: (data) => client.post('/payments/razorpay/create-booking', data),
-  verifyPayment: (data) => client.post('/payments/razorpay/verify', data),
-  initiateRefund: (orderId, data) => client.post(`/payments/razorpay/refund/${orderId}`, data),
+  // Customer uploads a FonePay payment screenshot for their order.
+  // `formData` must contain a `screenshot` file field.
+  submitProof: (orderId, formData) => client.post(`/payments/proof/${orderId}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  // Admin/employee accept or reject the uploaded screenshot.
+  reviewPayment: (orderId, data) => client.patch(`/payments/${orderId}/review`, data),
   getByOrder: (orderId) => client.get(`/payments/order/${orderId}`),
 };

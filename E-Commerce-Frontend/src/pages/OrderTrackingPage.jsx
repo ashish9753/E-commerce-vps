@@ -504,7 +504,7 @@ export default function OrderTrackingPage() {
                       {order.codBookingStatus === 'PAID' ? (
                         <>
                           <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, marginBottom:8 }}>
-                            <span style={{ color:'#16a34a', fontWeight:700 }}>✓ Booking paid (Razorpay)</span>
+                            <span style={{ color:'#16a34a', fontWeight:700 }}>✓ Booking paid (FonePay)</span>
                             <span style={{ color:'#16a34a', fontWeight:700 }}>−{formatPriceShort(order.codBookingAmount)}</span>
                           </div>
                           <div style={{ display:'flex', justifyContent:'space-between', fontSize:16, fontWeight:900, borderTop:'1px dashed #bbf7d0', paddingTop:8 }}>

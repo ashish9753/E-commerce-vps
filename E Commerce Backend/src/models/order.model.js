@@ -74,7 +74,30 @@ const orderSchema = new mongoose.Schema(
     paidAt: Date,
     codBookingAmount:  { type: Number, default: 0 },
     codBookingUtr:     { type: String, default: "" },   // UPI transaction ref
-    codBookingStatus:  { type: String, enum: ["NOT_REQUIRED", "PENDING", "PAID"], default: "NOT_REQUIRED" },
+    codBookingStatus:  { type: String, enum: ["NOT_REQUIRED", "PENDING", "PAID", "REJECTED"], default: "NOT_REQUIRED" },
+    // FonePay QR booking-advance screenshot uploaded by the customer. Verified
+    // by admin/employee — accept moves codBookingStatus → PAID, reject → REJECTED.
+    codBookingScreenshot: {
+      url:        String,
+      publicId:   String,
+      uploadedAt: Date,
+    },
+    // ─── FonePay manual payment (ONLINE orders) ───────────────────────────
+    // Customer pays by scanning the FonePay QR, then uploads a screenshot of
+    // the successful transaction. Staff verify it manually before the order is
+    // marked PAID. (Replaces the old Razorpay gateway flow.)
+    paymentProof: {
+      url:        String,
+      publicId:   String,
+      uploadedAt: Date,
+    },
+    paymentReviewStatus: {
+      type: String,
+      enum: ["NOT_REQUIRED", "PENDING_REVIEW", "VERIFIED", "REJECTED"],
+      default: "NOT_REQUIRED",
+    },
+    paymentReviewNote: { type: String, default: "" },   // rejection reason / staff note
+    paymentReviewedAt: { type: Date, default: null },
     cancellationRefundMethod: { type: String, enum: ['bank_transfer', 'upi'] },
     cancellationBankDetails:  { type: mongoose.Schema.Types.Mixed, default: {} },
     cancellationRefundProof:  [{

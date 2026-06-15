@@ -386,7 +386,10 @@ export const placeOrder = async (req, res, next) => {
           codBookingAmount = cfg.bookingType === "percent"
             ? parseFloat(((totalPrice * cfg.bookingValue) / 100).toFixed(2))
             : cfg.bookingValue;
-          codBookingStatus = codBookingUtr ? "PAID" : "PENDING";
+          // Booking advance is paid via FonePay QR; the customer uploads a
+          // screenshot after the order is created and staff verify it. So the
+          // order always starts PENDING here regardless of any legacy UTR.
+          codBookingStatus = "PENDING";
         }
       }
     }

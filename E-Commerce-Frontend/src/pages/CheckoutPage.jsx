@@ -13,6 +13,7 @@ import { couponsApi } from '../api/coupons';
 import { formatPriceShort } from '../utils/formatters';
 import { cleanPhone, isValidPhone } from '../utils/validators';
 import { getErrorMessage } from '../api/client';
+import FonePayUploader from '../components/FonePayUploader';
 
 /* ── tiny helpers ── */
 const Inp = ({ label, value, onChange, placeholder, half }) => (
@@ -158,7 +159,7 @@ function OrderSummary({ items, subtotal, deliveryCharge, discountAmount, total, 
           <button onClick={onPlace} disabled={loading || !canPlace}
             style={{ width: '100%', padding: '10px 0', background: '#FFD814', border: '1px solid #FBA131', borderRadius: 6,
               fontWeight: 700, fontSize: 15, cursor: canPlace ? 'pointer' : 'not-allowed', opacity: loading ? 0.7 : 1 }}>
-            {loading ? (paymentMethod === 'RAZORPAY' ? 'Opening payment…' : 'Placing order…') : 'Place your order'}
+            {loading ? (paymentMethod === 'FONEPAY' ? 'Submitting payment…' : 'Placing order…') : 'Place your order'}
           </button>
           <div style={{ fontSize: 11, color: '#555', marginTop: 8, lineHeight: 1.5 }}>
             By placing your order, you agree to our <span style={{ color: '#007185' }}>Privacy Policy</span> and <span style={{ color: '#007185' }}>Conditions of Use</span>.
@@ -201,7 +202,7 @@ function OrderSummary({ items, subtotal, deliveryCharge, discountAmount, total, 
               {bookingConfirmed ? (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#16a34a', fontWeight: 700 }}>
-                    <span>✓ Booking paid (Razorpay):</span>
+                    <span>✓ Booking screenshot attached:</span>
                     <span>−{formatPriceShort(codBookingAmount)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 16, color: '#0f172a', borderTop: '2px solid #e5e7eb', paddingTop: 8, marginTop: 2 }}>
@@ -298,18 +299,6 @@ function OrderSummary({ items, subtotal, deliveryCharge, discountAmount, total, 
   );
 }
 
-/* ── load Razorpay checkout.js once ── */
-function loadRazorpayScript() {
-  return new Promise(resolve => {
-    if (window.Razorpay) { resolve(true); return; }
-    const s = document.createElement('script');
-    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    s.onload = () => resolve(true);
-    s.onerror = () => resolve(false);
-    document.body.appendChild(s);
-  });
-}
-
 /* ══════════════════ Main page ══════════════════ */
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -364,9 +353,12 @@ export default function CheckoutPage() {
   const [loading, setLoading]                 = useState(false);
   const [addrLoading, setAddrLoading]         = useState(true);
   const [codCfg, setCodCfg]                   = useState(null);
-  const [bookingPaymentId, setBookingPaymentId] = useState('');
-  const [bookingConfirmed, setBookingConfirmed] = useState(false);
-  const [bookingLoading, setBookingLoading]     = useState(false);
+  // FonePay manual payment — screenshot files held client-side until the order
+  // is created, then uploaded. `paymentScreenshot` is the full online payment;
+  // `bookingScreenshot` is the COD non-refundable advance.
+  const [paymentScreenshot, setPaymentScreenshot] = useState(null);
+  const [bookingScreenshot, setBookingScreenshot] = useState(null);
+  const bookingConfirmed = !!bookingScreenshot;
   const [paymentMethod, setPaymentMethod]       = useState('COD');
   const [deliveryCheck, setDeliveryCheck]       = useState(null); // { available, city, deliveryCharge } | null
   const [deliveryChecking, setDeliveryChecking] = useState(false);
@@ -422,10 +414,9 @@ export default function CheckoutPage() {
         const max = s?.maxOrderAmount || 0;
         const tooLow  = min > 0 && checkoutTotal < min;
         const tooHigh = max > 0 && checkoutTotal > max;
-        if (!enabled || tooLow || tooHigh) setPaymentMethod('RAZORPAY');
+        if (!enabled || tooLow || tooHigh) setPaymentMethod('FONEPAY');
       })
       .catch(() => {});
-    loadRazorpayScript();
   }, [user, navigate]);
 
   const codAvailable = codCfg
@@ -523,100 +514,52 @@ export default function CheckoutPage() {
     }
   };
 
-  const openRazorpayModal = (rzpOrderData, orderId) => {
-    return new Promise((resolve, reject) => {
-      const options = {
-        key: rzpOrderData.keyId,
-        amount: rzpOrderData.amount,
-        currency: rzpOrderData.currency,
-        order_id: rzpOrderData.razorpayOrderId,
-        name: 'TradeEngine',
-        description: 'Order Payment',
-        theme: { color: '#FF9900' },
-        handler: async (response) => {
-          try {
-            const { data } = await paymentsApi.verifyPayment({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              orderId,
-            });
-            resolve(data);
-          } catch (err) {
-            reject(new Error(getErrorMessage(err)));
-          }
-        },
-        modal: {
-          ondismiss: () => reject(new Error('Payment cancelled')),
-        },
-      };
-      const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', (response) => {
-        reject(new Error(response.error?.description || 'Payment failed'));
-      });
-      rzp.open();
-    });
+  // Upload a FonePay screenshot to the just-created order. Returns true on
+  // success; on failure the order still exists (PENDING) so the customer can
+  // re-upload from My Orders — we surface a clear message and route them there.
+  const uploadScreenshot = async (orderId, file) => {
+    const fd = new FormData();
+    fd.append('screenshot', file);
+    await paymentsApi.submitProof(orderId, fd);
   };
 
   const handlePlaceOrder = async () => {
     if (!selectedAddressId) { toast('Please select a delivery address', 'error'); return; }
-    if (paymentMethod === 'COD' && codBookingRequired && !bookingConfirmed) {
-      toast('Please complete the booking payment first', 'error'); return;
+    if (paymentMethod === 'FONEPAY' && !paymentScreenshot) {
+      toast('Please upload your FonePay payment screenshot first', 'error'); return;
+    }
+    if (paymentMethod === 'COD' && codBookingRequired && !bookingScreenshot) {
+      toast('Please upload your booking payment screenshot first', 'error'); return;
     }
 
     setLoading(true);
 
-    if (paymentMethod === 'RAZORPAY') {
-      const scriptLoaded = await loadRazorpayScript();
-      if (!scriptLoaded || !window.Razorpay) {
-        toast('Could not load payment gateway. Please check your internet connection.', 'error');
-        setLoading(false);
-        return;
-      }
-
-      // Step 1: Create the order in DB
+    if (paymentMethod === 'FONEPAY') {
+      // Step 1: Create the order in DB (PENDING — awaiting payment verification)
       const result = await placeOrder({
         shippingAddressId: selectedAddressId,
         paymentMethod: 'ONLINE',
         ...buyNowExtra,
       });
-
       if (!result.success) {
         toast(result.error, 'error');
         setLoading(false);
         return;
       }
 
-      const orderId = result.order._id;
-
-      // Step 2: Create Razorpay order on backend
-      let rzpOrderData;
+      // Step 2: Attach the payment screenshot for staff to verify
       try {
-        const { data } = await paymentsApi.createRazorpayOrder({ orderId });
-        rzpOrderData = data.data;
-      } catch (err) {
-        toast(getErrorMessage(err), 'error');
-        setLoading(false);
-        return;
-      }
-
-      // Step 3: Open Razorpay modal
-      try {
-        await openRazorpayModal(rzpOrderData, orderId);
+        await uploadScreenshot(result.order._id, paymentScreenshot);
         setOrderSubmitted(true);
         if (!buyNow) await clearCart();
-        toast('Payment successful! Order confirmed.');
-        navigate('/orders');
+        toast('Order placed! Your payment is being verified by our team.');
       } catch (err) {
-        if (err.message === 'Payment cancelled') {
-          toast('Payment was cancelled. Your order is pending — you can pay from My Orders.', 'warn');
-          navigate('/orders');
-        } else {
-          toast(err.message || 'Payment failed. Try again from My Orders.', 'error');
-          navigate('/orders');
-        }
+        setOrderSubmitted(true);
+        if (!buyNow) await clearCart();
+        toast(`${getErrorMessage(err)} — you can re-upload from My Orders.`, 'warn');
       }
       setLoading(false);
+      navigate('/orders');
       return;
     }
 
@@ -624,18 +567,28 @@ export default function CheckoutPage() {
     const result = await placeOrder({
       shippingAddressId: selectedAddressId,
       paymentMethod: 'COD',
-      codBookingUtr: bookingConfirmed ? bookingPaymentId : '',
       ...buyNowExtra,
     });
-    setLoading(false);
-    if (result.success) {
-      setOrderSubmitted(true);
-      if (!buyNow) await clearCart();
-      toast('Order placed successfully!');
-      navigate('/orders');
-    } else {
+    if (!result.success) {
+      setLoading(false);
       toast(result.error, 'error');
+      return;
     }
+
+    // COD with a non-refundable booking advance — attach its screenshot too
+    if (codBookingRequired && bookingScreenshot) {
+      try {
+        await uploadScreenshot(result.order._id, bookingScreenshot);
+      } catch (err) {
+        toast(`Order placed, but booking screenshot failed: ${getErrorMessage(err)} — re-upload from My Orders.`, 'warn');
+      }
+    }
+
+    setLoading(false);
+    setOrderSubmitted(true);
+    if (!buyNow) await clearCart();
+    toast('Order placed successfully!');
+    navigate('/orders');
   };
 
   const selectedAddress = addresses.find(a => a._id === selectedAddressId);
@@ -875,25 +828,25 @@ export default function CheckoutPage() {
                 </div>
                 <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-                  {/* Razorpay option */}
-                  <div onClick={() => setPaymentMethod('RAZORPAY')}
-                    style={{ border: `2px solid ${paymentMethod === 'RAZORPAY' ? '#3b82f6' : '#ddd'}`, borderRadius: 6, padding: '16px 18px',
-                      background: paymentMethod === 'RAZORPAY' ? '#eff6ff' : 'white', display: 'flex', gap: 14, alignItems: 'center', cursor: 'pointer', transition: 'all .15s' }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 8, background: '#072654', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                      <span style={{ color: '#3395FF', fontWeight: 900, fontSize: 11, letterSpacing: '-0.5px' }}>R₹Pay</span>
+                  {/* FonePay option */}
+                  <div onClick={() => setPaymentMethod('FONEPAY')}
+                    style={{ border: `2px solid ${paymentMethod === 'FONEPAY' ? '#e2117b' : '#ddd'}`, borderRadius: 6, padding: '16px 18px',
+                      background: paymentMethod === 'FONEPAY' ? '#fdf2f8' : 'white', display: 'flex', gap: 14, alignItems: 'center', cursor: 'pointer', transition: 'all .15s' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 8, background: '#e2117b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
+                      <span style={{ color: 'white', fontWeight: 900, fontSize: 18 }}>QR</span>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 15 }}>Pay Online (Razorpay)</div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>Pay via FonePay (QR)</div>
                       <div style={{ fontSize: 13, color: '#555', marginTop: 3 }}>
-                        UPI · Cards · Net Banking · Wallets — instant confirmation
+                        Scan the QR, pay, and upload your payment screenshot.
                       </div>
                       <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, marginTop: 4 }}>
-                        ✓ Secure · Instant refund on cancellation
+                        ✓ Order confirmed once our team verifies your payment
                       </div>
                     </div>
-                    <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${paymentMethod === 'RAZORPAY' ? '#3b82f6' : '#ccc'}`,
+                    <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${paymentMethod === 'FONEPAY' ? '#e2117b' : '#ccc'}`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {paymentMethod === 'RAZORPAY' && <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#3b82f6' }} />}
+                      {paymentMethod === 'FONEPAY' && <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#e2117b' }} />}
                     </div>
                   </div>
 
@@ -942,14 +895,38 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Razorpay booking block — only for COD when booking required */}
+              {/* FonePay QR + screenshot — full online payment */}
+              {paymentMethod === 'FONEPAY' && (
+                <div style={{ background: 'white', border: `2px solid ${paymentScreenshot ? '#16a34a' : '#e2117b'}`, borderRadius: 6, overflow: 'hidden' }}>
+                  <div style={{ background: paymentScreenshot ? '#16a34a' : '#e2117b', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>{paymentScreenshot ? '✅' : '📲'}</span>
+                    <div>
+                      <div style={{ color: 'white', fontWeight: 800, fontSize: 15 }}>
+                        {paymentScreenshot ? 'Payment screenshot ready' : 'Pay with FonePay QR'}
+                      </div>
+                      <div style={{ color: 'rgba(255,255,255,.85)', fontSize: 12 }}>Your order is confirmed once our team verifies your payment</div>
+                    </div>
+                  </div>
+                  <div style={{ padding: '20px 24px' }}>
+                    <FonePayUploader
+                      amount={checkoutTotal}
+                      file={paymentScreenshot}
+                      onFile={setPaymentScreenshot}
+                      accent="#e2117b"
+                      onError={(m) => toast(m, 'error')}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* FonePay booking block — only for COD when a booking advance is required */}
               {paymentMethod === 'COD' && codBookingRequired && (
                 <div style={{ background: 'white', border: `2px solid ${bookingConfirmed ? '#16a34a' : '#f59e0b'}`, borderRadius: 6, overflow: 'hidden' }}>
                   <div style={{ background: bookingConfirmed ? '#16a34a' : '#f59e0b', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ fontSize: 20 }}>{bookingConfirmed ? '✅' : '⚡'}</span>
                     <div>
                       <div style={{ color: 'white', fontWeight: 800, fontSize: 15 }}>
-                        {bookingConfirmed ? 'Booking Amount Paid' : 'Pay Booking Amount'}
+                        {bookingConfirmed ? 'Booking screenshot ready' : 'Pay Booking Amount'}
                       </div>
                       <div style={{ color: 'rgba(255,255,255,.8)', fontSize: 12 }}>Non-refundable · Required to confirm your COD order</div>
                     </div>
@@ -959,7 +936,7 @@ export default function CheckoutPage() {
                     {/* Amount split */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20, padding: '16px', background: '#fefce8', borderRadius: 8, border: '1px solid #fde68a' }}>
                       <div style={{ textAlign: 'center', flex: 1 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '.06em' }}>Pay Now (Razorpay)</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '.06em' }}>Pay Now (FonePay)</div>
                         <div style={{ fontSize: 28, fontWeight: 900, color: '#b45309' }}>{formatPriceShort(codBookingAmount)}</div>
                         <div style={{ fontSize: 11, color: '#92400e' }}>Non-refundable booking</div>
                       </div>
@@ -971,82 +948,13 @@ export default function CheckoutPage() {
                       </div>
                     </div>
 
-                    {!bookingConfirmed ? (
-                      <button
-                        disabled={bookingLoading}
-                        onClick={async () => {
-                          const scriptLoaded = await loadRazorpayScript();
-                          if (!scriptLoaded || !window.Razorpay) {
-                            toast('Could not load payment gateway', 'error'); return;
-                          }
-                          setBookingLoading(true);
-                          try {
-                            const { data } = await paymentsApi.createBookingOrder({ amount: codBookingAmount });
-                            const rzpData = data.data;
-                            const rzp = new window.Razorpay({
-                              key: rzpData.keyId,
-                              amount: rzpData.amount,
-                              currency: rzpData.currency,
-                              order_id: rzpData.razorpayOrderId,
-                              name: 'TradeEngine',
-                              description: `COD Booking — ${formatPriceShort(codBookingAmount)}`,
-                              theme: { color: '#f59e0b' },
-                              handler: async (response) => {
-                                const payId = response.razorpay_payment_id;
-                                setBookingPaymentId(payId);
-                                setBookingConfirmed(true);
-                                setBookingLoading(false);
-                                toast('Booking payment successful! Placing your order…');
-                                // Auto-place the COD order immediately
-                                setLoading(true);
-                                const result = await placeOrder({
-                                  shippingAddressId: selectedAddressId,
-                                  paymentMethod: 'COD',
-                                  codBookingUtr: payId,
-                                  ...buyNowExtra,
-                                });
-                                setLoading(false);
-                                if (result.success) {
-                                  setOrderSubmitted(true);
-                                  if (!buyNow) await clearCart();
-                                  toast('Order placed successfully!');
-                                  navigate('/orders');
-                                } else {
-                                  toast(result.error || 'Failed to place order. Please try from Review step.', 'error');
-                                }
-                              },
-                              modal: { ondismiss: () => setBookingLoading(false) },
-                            });
-                            rzp.on('payment.failed', () => {
-                              toast('Booking payment failed. Please try again.', 'error');
-                              setBookingLoading(false);
-                            });
-                            rzp.open();
-                          } catch (err) {
-                            toast(getErrorMessage(err), 'error');
-                          } finally {
-                            setBookingLoading(false);
-                          }
-                        }}
-                        style={{ width: '100%', padding: '14px', background: bookingLoading ? '#d1d5db' : '#072654',
-                          color: 'white', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 15,
-                          cursor: bookingLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                        <span style={{ color: '#3395FF', fontWeight: 900, fontSize: 14 }}>R₹</span>
-                        {bookingLoading ? 'Opening payment…' : `Pay ${formatPriceShort(codBookingAmount)} via Razorpay`}
-                      </button>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
-                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 18, flexShrink: 0 }}>✓</div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14, color: '#166534' }}>Booking Payment Confirmed</div>
-                          <div style={{ fontSize: 12, color: '#166534', marginTop: 2 }}>Payment ID: <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{bookingPaymentId}</span></div>
-                        </div>
-                        <button onClick={() => { setBookingConfirmed(false); setBookingPaymentId(''); }}
-                          style={{ fontSize: 12, color: '#16a34a', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
-                          Retry
-                        </button>
-                      </div>
-                    )}
+                    <FonePayUploader
+                      amount={codBookingAmount}
+                      file={bookingScreenshot}
+                      onFile={setBookingScreenshot}
+                      accent="#f59e0b"
+                      onError={(m) => toast(m, 'error')}
+                    />
                   </div>
                 </div>
               )}
@@ -1060,8 +968,11 @@ export default function CheckoutPage() {
                   if (orderAmountBlocked) {
                     toast(codTooLow ? `COD minimum is Rs. ${minOrderAmt}` : `COD maximum is Rs. ${maxOrderAmt}`, 'error'); return;
                   }
-                  if (paymentMethod === 'COD' && codBookingRequired && !bookingConfirmed) {
-                    toast('Please complete the booking payment first', 'error'); return;
+                  if (paymentMethod === 'FONEPAY' && !paymentScreenshot) {
+                    toast('Please upload your FonePay payment screenshot first', 'error'); return;
+                  }
+                  if (paymentMethod === 'COD' && codBookingRequired && !bookingScreenshot) {
+                    toast('Please upload your booking payment screenshot first', 'error'); return;
                   }
                   setStep(3);
                 }}
@@ -1103,18 +1014,20 @@ export default function CheckoutPage() {
                 {/* Payment summary */}
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid #eee', display: 'flex', gap: 16, alignItems: 'center' }}>
                   <div style={{ width: 36, height: 36, borderRadius: '50%',
-                    background: paymentMethod === 'RAZORPAY' ? '#eff6ff' : '#fff8f0',
-                    border: `2px solid ${paymentMethod === 'RAZORPAY' ? '#3b82f6' : '#FF9900'}`,
+                    background: paymentMethod === 'FONEPAY' ? '#fdf2f8' : '#fff8f0',
+                    border: `2px solid ${paymentMethod === 'FONEPAY' ? '#e2117b' : '#FF9900'}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
-                    {paymentMethod === 'RAZORPAY' ? '💳' : '💵'}
+                    {paymentMethod === 'FONEPAY' ? '📲' : '💵'}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Payment method</div>
-                    {paymentMethod === 'RAZORPAY' ? (
+                    {paymentMethod === 'FONEPAY' ? (
                       <>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>Razorpay (Online Payment)</div>
-                        <div style={{ fontSize: 12, color: '#3b82f6', marginTop: 2, fontWeight: 600 }}>
-                          UPI / Card / Net Banking · {formatPriceShort(checkoutTotal)} due now
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>FonePay (QR Payment)</div>
+                        <div style={{ fontSize: 12, color: '#e2117b', marginTop: 2, fontWeight: 600 }}>
+                          {paymentScreenshot
+                            ? `✓ Screenshot attached · ${formatPriceShort(checkoutTotal)} — pending verification`
+                            : `Upload your payment screenshot · ${formatPriceShort(checkoutTotal)}`}
                         </div>
                       </>
                     ) : (
@@ -1122,7 +1035,7 @@ export default function CheckoutPage() {
                         <div style={{ fontWeight: 700, fontSize: 14 }}>Cash on Delivery</div>
                         {codBookingRequired && bookingConfirmed ? (
                           <div style={{ fontSize: 12, marginTop: 4 }}>
-                            <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ Booking {formatPriceShort(codBookingAmount)} paid via Razorpay</span>
+                            <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ Booking {formatPriceShort(codBookingAmount)} screenshot attached (FonePay)</span>
                             <span style={{ color: '#555', marginLeft: 6 }}>· {formatPriceShort(checkoutTotal - codBookingAmount)} on delivery</span>
                           </div>
                         ) : (
@@ -1169,9 +1082,9 @@ export default function CheckoutPage() {
                   style={{ width: '100%', padding: '13px', background: '#FFD814', border: '1px solid #FBA131', borderRadius: 6,
                     fontWeight: 800, fontSize: 16, cursor: 'pointer', opacity: loading ? 0.7 : 1, marginBottom: 10 }}>
                   {loading
-                    ? (paymentMethod === 'RAZORPAY' ? 'Opening payment gateway…' : 'Placing your order…')
-                    : (paymentMethod === 'RAZORPAY'
-                        ? `Pay ${formatPriceShort(checkoutTotal)} via Razorpay`
+                    ? (paymentMethod === 'FONEPAY' ? 'Submitting your payment…' : 'Placing your order…')
+                    : (paymentMethod === 'FONEPAY'
+                        ? `Confirm order & submit payment · ${formatPriceShort(checkoutTotal)}`
                         : `Place your order · ${formatPriceShort(checkoutTotal)}`)}
                 </button>
                 <div style={{ fontSize: 12, color: '#555', lineHeight: 1.6, textAlign: 'center' }}>

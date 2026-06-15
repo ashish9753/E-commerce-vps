@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { employeeApi } from '../../api/employee';
 import { ordersApi } from '../../api/orders';
+import { paymentsApi } from '../../api/payments';
 import { returnsApi } from '../../api/returns';
 import { deliveryAreasApi } from '../../api/deliveryAreas';
 import { upayaApi } from '../../api/upaya';
@@ -636,7 +637,28 @@ function OrdersTab({ onViewReturns }) {
   const [pagination, setPag]    = useState({ total: 0, totalPages: 1, hasNextPage: false, hasPrevPage: false });
   const [expandedId, setExpandedId] = useState(null);
   const [pendingPayCount, setPendingPay] = useState(0);
+  const [reviewingPay, setReviewingPay] = useState(null); // orderId being verified
+  const [payImg, setPayImg]             = useState(null);  // screenshot url to enlarge
 
+  // Verify (accept) or reject a customer's FonePay payment screenshot. Branches
+  // server-side on the order's paymentMethod (full ONLINE payment vs COD booking).
+  const handleReviewPayment = async (order, action) => {
+    let note = '';
+    if (action === 'reject') {
+      note = window.prompt(`Reject payment for ${order.orderNumber}?\n\nReason (shown to customer):`, 'Payment not received / invalid screenshot');
+      if (note === null) return;
+    }
+    setReviewingPay(order._id);
+    try {
+      const { data } = await paymentsApi.reviewPayment(order._id, { action, note });
+      const updated = data?.data?.order;
+      if (updated) setAll(prev => prev.map(x => x._id === order._id ? { ...x, ...updated } : x));
+    } catch (e) {
+      alert(e?.response?.data?.message || 'Failed to update payment');
+    } finally {
+      setReviewingPay(null);
+    }
+  };
 
   // appliedSearch only updates on Enter / Search button — no API calls while typing
   const [appliedSearch, setAppliedSearch] = useState('');
@@ -701,6 +723,12 @@ function OrdersTab({ onViewReturns }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20, opacity: loading ? 0.55 : 1, transition: 'opacity .2s', pointerEvents: loading ? 'none' : 'auto' }}>
+      {payImg && (
+        <div onClick={() => setPayImg(null)} style={{ position:'fixed', inset:0, background:'#000d', zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
+          <img src={payImg} alt="Payment screenshot" onClick={e => e.stopPropagation()}
+            style={{ maxWidth:'90vw', maxHeight:'90vh', objectFit:'contain', borderRadius:10, boxShadow:'0 20px 60px rgba(0,0,0,.5)' }} />
+        </div>
+      )}
       <div style={{ display:'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap:12 }}>
         <KpiCard label="Total Orders"   value={fmt(all.length)}  sub={`${delivered} delivered`}   colorKey="blue"   iconEl={Icon.orders} />
         <KpiCard label="Revenue Earned" value={fmtShort(revenue)} sub="From paid orders"           colorKey="green"  iconEl={Icon.dollar} rawValue={revenue} />
@@ -966,6 +994,87 @@ function OrdersTab({ onViewReturns }) {
                         <Badge text={o.paymentStatus} color={o.paymentStatus==='PAID'?C.green:o.paymentStatus==='FAILED'?C.red:C.yellow} />
                         <span style={{ fontWeight:700, fontSize:13, color:C.text, marginLeft:'auto' }}>{fmtRs(o.totalPrice)}</span>
                       </div>
+
+                      {/* FonePay payment verification — customer screenshot + accept/reject */}
+                      {(o.paymentProof?.url || (o.paymentMethod === 'COD' && o.codBookingScreenshot?.url)) && (
+                        <div style={{ marginBottom:14, border:`1px solid ${C.line}`, borderRadius:8, padding:'12px 14px', background:C.bg }}>
+                          <div style={{ fontSize:11, fontWeight:700, color:C.mute, textTransform:'uppercase', letterSpacing:'.05em', marginBottom:10 }}>
+                            🧾 FonePay Payment Verification
+                          </div>
+
+                          {o.paymentProof?.url && (() => {
+                            const st = o.paymentReviewStatus;
+                            const pending = st === 'PENDING_REVIEW';
+                            const badgeColor = st === 'VERIFIED' ? C.green : st === 'REJECTED' ? C.red : C.yellow;
+                            return (
+                              <div style={{ display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap' }}>
+                                <img src={o.paymentProof.url} alt="Payment screenshot" onClick={() => setPayImg(o.paymentProof.url)}
+                                  style={{ width:96, height:96, objectFit:'cover', borderRadius:8, border:`1px solid ${C.line}`, cursor:'zoom-in', flexShrink:0 }} />
+                                <div style={{ flex:1, minWidth:180 }}>
+                                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' }}>
+                                    <span style={{ fontSize:12, color:C.sub }}>Online payment of <b style={{ color:C.text }}>{fmtRs(o.totalPrice)}</b></span>
+                                    <Badge text={pending ? 'UNDER REVIEW' : st} color={badgeColor} />
+                                  </div>
+                                  {st === 'REJECTED' && o.paymentReviewNote && (
+                                    <div style={{ fontSize:11, color:C.red, marginBottom:6 }}>Reason: {o.paymentReviewNote}</div>
+                                  )}
+                                  {pending ? (
+                                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                                      <button onClick={() => handleReviewPayment(o, 'accept')} disabled={reviewingPay === o._id}
+                                        style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:'none', background:C.green, color:'white', cursor: reviewingPay===o._id?'not-allowed':'pointer', opacity: reviewingPay===o._id?0.6:1 }}>
+                                        {reviewingPay === o._id ? '…' : '✓ Accept payment'}
+                                      </button>
+                                      <button onClick={() => handleReviewPayment(o, 'reject')} disabled={reviewingPay === o._id}
+                                        style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.red}55`, background:C.red+'18', color:C.red, cursor: reviewingPay===o._id?'not-allowed':'pointer' }}>
+                                        ✕ Reject
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ fontSize:11, color:C.mute }}>
+                                      {st === 'VERIFIED' ? 'Payment verified — order confirmed.' : 'Awaiting a valid screenshot from the customer.'}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {o.paymentMethod === 'COD' && o.codBookingScreenshot?.url && (() => {
+                            const st = o.codBookingStatus;
+                            const pending = st === 'PENDING';
+                            const badgeColor = st === 'PAID' ? C.green : st === 'REJECTED' ? C.red : C.yellow;
+                            return (
+                              <div style={{ display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap' }}>
+                                <img src={o.codBookingScreenshot.url} alt="Booking screenshot" onClick={() => setPayImg(o.codBookingScreenshot.url)}
+                                  style={{ width:96, height:96, objectFit:'cover', borderRadius:8, border:`1px solid ${C.line}`, cursor:'zoom-in', flexShrink:0 }} />
+                                <div style={{ flex:1, minWidth:180 }}>
+                                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' }}>
+                                    <span style={{ fontSize:12, color:C.sub }}>COD booking advance <b style={{ color:C.text }}>{fmtRs(o.codBookingAmount)}</b></span>
+                                    <Badge text={st} color={badgeColor} />
+                                  </div>
+                                  {pending ? (
+                                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                                      <button onClick={() => handleReviewPayment(o, 'accept')} disabled={reviewingPay === o._id}
+                                        style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:'none', background:C.green, color:'white', cursor: reviewingPay===o._id?'not-allowed':'pointer', opacity: reviewingPay===o._id?0.6:1 }}>
+                                        {reviewingPay === o._id ? '…' : '✓ Accept booking'}
+                                      </button>
+                                      <button onClick={() => handleReviewPayment(o, 'reject')} disabled={reviewingPay === o._id}
+                                        style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.red}55`, background:C.red+'18', color:C.red, cursor: reviewingPay===o._id?'not-allowed':'pointer' }}>
+                                        ✕ Reject
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div style={{ fontSize:11, color:C.mute }}>
+                                      {st === 'PAID' ? 'Booking advance verified.' : 'Awaiting a valid booking screenshot.'}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      )}
+
                       <OrderStatusCell order={o} onUpdated={handleStatusUpdated} onViewReturns={onViewReturns} />
                     </div>
                   )}
@@ -2414,7 +2523,7 @@ function EmployeeSettingsTab() {
         {/* Order limits */}
         <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.line}` }}>
           <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 2 }}>COD Order Amount Limits</div>
-          <div style={{ fontSize: 11.5, color: C.mute, marginBottom: 14 }}>Applies to COD orders only. Online (Razorpay) orders have no restrictions. Leave empty for no limit.</div>
+          <div style={{ fontSize: 11.5, color: C.mute, marginBottom: 14 }}>Applies to COD orders only. Online (FonePay) orders have no restrictions. Leave empty for no limit.</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div>
               <label style={lbl}>Minimum Amount (Rs.)</label>
@@ -2438,7 +2547,7 @@ function EmployeeSettingsTab() {
           </div>
           <div style={{ padding: '18px 22px' }}>
             <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 2 }}>COD Booking Amount</div>
-            <div style={{ fontSize: 11.5, color: C.mute, marginBottom: 14 }}>Collect non-refundable advance via Razorpay for COD orders.</div>
+            <div style={{ fontSize: 11.5, color: C.mute, marginBottom: 14 }}>Collect non-refundable advance via FonePay QR for COD orders.</div>
             <Toggle on={cfg.bookingEnabled} onChange={() => set('bookingEnabled', !cfg.bookingEnabled)} />
           </div>
         </div>
@@ -2468,7 +2577,7 @@ function EmployeeSettingsTab() {
                 <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>
                   {cfg.bookingType === 'percent' ? `${cfg.bookingValue || 0}% of order total` : `Rs. ${Number(cfg.bookingValue || 0).toLocaleString('en-IN')}`}
                 </div>
-                <div style={{ fontSize: 11, color: C.mute, marginTop: 2 }}>Razorpay (UPI) · Non-refundable</div>
+                <div style={{ fontSize: 11, color: C.mute, marginTop: 2 }}>FonePay QR · Non-refundable</div>
               </div>
               <div style={{ background: 'rgba(239,68,68,.08)', border: `1px solid rgba(239,68,68,.2)`, borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#f87171', lineHeight: 1.5 }}>
                 ⚠ This booking is <span style={{ fontWeight: 700 }}>non-refundable</span> and collected before the order is confirmed.

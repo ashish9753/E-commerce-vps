@@ -175,7 +175,7 @@ export const processOrderJob = async (job) => {
       ? {
           user: userId,
           title: "Order Pending Payment ⏳",
-          message: `Order ${order.orderNumber} (₹${totalPrice}) is awaiting payment. Please complete it within ${pendingTimeoutMin} minutes from My Orders, or cancel the order.`,
+          message: `Order ${order.orderNumber} (Rs. ${totalPrice}) is awaiting payment. Please scan the FonePay QR, pay, and upload your payment screenshot from My Orders within ${pendingTimeoutMin} minutes — or cancel the order.`,
           type: "ORDER",
           link: `/orders`,
         }
