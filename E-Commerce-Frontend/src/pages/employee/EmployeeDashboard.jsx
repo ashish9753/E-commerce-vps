@@ -660,6 +660,22 @@ function OrdersTab({ onViewReturns }) {
     }
   };
 
+  // Reject the payment AND cancel the whole order — restocks the items so other
+  // customers can buy them. Use when the payment is fake / never coming.
+  const handleRejectAndCancel = async (order) => {
+    const reason = window.prompt(`Cancel order ${order.orderNumber}?\n\nThis releases the items back to stock so other customers can buy them.\nReason (shown to customer):`, 'Payment not received — order cancelled');
+    if (!reason) return;
+    setReviewingPay(order._id);
+    try {
+      await ordersApi.cancel(order._id, { reason });
+      setAll(prev => prev.map(x => x._id === order._id ? { ...x, orderStatus: 'CANCELLED', cancellationReason: reason } : x));
+    } catch (e) {
+      alert(e?.response?.data?.message || 'Failed to cancel order');
+    } finally {
+      setReviewingPay(null);
+    }
+  };
+
   // appliedSearch only updates on Enter / Search button — no API calls while typing
   const [appliedSearch, setAppliedSearch] = useState('');
   const applySearch = () => { setPage(1); setAppliedSearch(search); };
@@ -1025,8 +1041,14 @@ function OrdersTab({ onViewReturns }) {
                                         {reviewingPay === o._id ? '…' : '✓ Accept payment'}
                                       </button>
                                       <button onClick={() => handleReviewPayment(o, 'reject')} disabled={reviewingPay === o._id}
+                                        title="Reject this screenshot but keep the order — the customer can pay again and re-upload"
                                         style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.red}55`, background:C.red+'18', color:C.red, cursor: reviewingPay===o._id?'not-allowed':'pointer' }}>
-                                        ✕ Reject
+                                        ✕ Reject · let them re-upload
+                                      </button>
+                                      <button onClick={() => handleRejectAndCancel(o)} disabled={reviewingPay === o._id}
+                                        title="Cancel the order and release the items back to stock so other customers can buy"
+                                        style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.line}`, background:C.card2||C.bg, color:C.text, cursor: reviewingPay===o._id?'not-allowed':'pointer' }}>
+                                        🚫 Reject &amp; cancel order
                                       </button>
                                     </div>
                                   ) : (
@@ -1059,8 +1081,14 @@ function OrdersTab({ onViewReturns }) {
                                         {reviewingPay === o._id ? '…' : '✓ Accept booking'}
                                       </button>
                                       <button onClick={() => handleReviewPayment(o, 'reject')} disabled={reviewingPay === o._id}
+                                        title="Reject this screenshot but keep the order — the customer can pay again and re-upload"
                                         style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.red}55`, background:C.red+'18', color:C.red, cursor: reviewingPay===o._id?'not-allowed':'pointer' }}>
-                                        ✕ Reject
+                                        ✕ Reject · let them re-upload
+                                      </button>
+                                      <button onClick={() => handleRejectAndCancel(o)} disabled={reviewingPay === o._id}
+                                        title="Cancel the order and release the items back to stock so other customers can buy"
+                                        style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.line}`, background:C.card2||C.bg, color:C.text, cursor: reviewingPay===o._id?'not-allowed':'pointer' }}>
+                                        🚫 Reject &amp; cancel order
                                       </button>
                                     </div>
                                   ) : (

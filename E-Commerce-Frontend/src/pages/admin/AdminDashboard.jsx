@@ -2030,13 +2030,19 @@ function OrdersTab({ globalSearch = '' }) {
                                     )}
                                     {pending ? (
                                       <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                                        <button onClick={() => handleReviewPayment(o, 'accept')} disabled={reviewingPay === o._id}
+                                        <button onClick={() => handleReviewPayment(o, 'accept')} disabled={reviewingPay === o._id || updating === o._id}
                                           style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:'none', background:C.green, color:'white', cursor: reviewingPay===o._id?'not-allowed':'pointer', opacity: reviewingPay===o._id?0.6:1 }}>
                                           {reviewingPay === o._id ? '…' : '✓ Accept payment'}
                                         </button>
-                                        <button onClick={() => handleReviewPayment(o, 'reject')} disabled={reviewingPay === o._id}
+                                        <button onClick={() => handleReviewPayment(o, 'reject')} disabled={reviewingPay === o._id || updating === o._id}
+                                          title="Reject this screenshot but keep the order — the customer can pay again and re-upload"
                                           style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.red}55`, background:C.red+'18', color:C.red, cursor: reviewingPay===o._id?'not-allowed':'pointer' }}>
-                                          ✕ Reject
+                                          ✕ Reject · let them re-upload
+                                        </button>
+                                        <button onClick={() => handleCancel(o._id)} disabled={reviewingPay === o._id || updating === o._id}
+                                          title="Cancel the order and release the items back to stock so other customers can buy"
+                                          style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.line}`, background:C.surf, color:C.text, cursor: (reviewingPay===o._id||updating===o._id)?'not-allowed':'pointer' }}>
+                                          🚫 Reject &amp; cancel order
                                         </button>
                                       </div>
                                     ) : (
@@ -2064,13 +2070,19 @@ function OrdersTab({ globalSearch = '' }) {
                                     </div>
                                     {pending ? (
                                       <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                                        <button onClick={() => handleReviewPayment(o, 'accept')} disabled={reviewingPay === o._id}
+                                        <button onClick={() => handleReviewPayment(o, 'accept')} disabled={reviewingPay === o._id || updating === o._id}
                                           style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:'none', background:C.green, color:'white', cursor: reviewingPay===o._id?'not-allowed':'pointer', opacity: reviewingPay===o._id?0.6:1 }}>
                                           {reviewingPay === o._id ? '…' : '✓ Accept booking'}
                                         </button>
-                                        <button onClick={() => handleReviewPayment(o, 'reject')} disabled={reviewingPay === o._id}
+                                        <button onClick={() => handleReviewPayment(o, 'reject')} disabled={reviewingPay === o._id || updating === o._id}
+                                          title="Reject this screenshot but keep the order — the customer can pay again and re-upload"
                                           style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.red}55`, background:C.red+'18', color:C.red, cursor: reviewingPay===o._id?'not-allowed':'pointer' }}>
-                                          ✕ Reject
+                                          ✕ Reject · let them re-upload
+                                        </button>
+                                        <button onClick={() => handleCancel(o._id)} disabled={reviewingPay === o._id || updating === o._id}
+                                          title="Cancel the order and release the items back to stock so other customers can buy"
+                                          style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.line}`, background:C.surf, color:C.text, cursor: (reviewingPay===o._id||updating===o._id)?'not-allowed':'pointer' }}>
+                                          🚫 Reject &amp; cancel order
                                         </button>
                                       </div>
                                     ) : (
