@@ -9,7 +9,7 @@ import { formatPriceShort } from '../utils/formatters';
  * selected File is lifted up via `onFile` — the parent decides when to upload
  * it (during checkout after the order is created, or directly from My Orders).
  *
- * Image lives at /public/fonePay.jpeg.
+ * Image lives at /public/fonePay1.jpeg.
  */
 const ACCEPTED = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 const MAX_BYTES = 10 * 1024 * 1024; // original file cap before compression
@@ -78,7 +78,7 @@ export default function FonePayUploader({ amount, file, onFile, accent = '#FF990
       {/* QR + instructions */}
       <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ width: 180, flexShrink: 0, border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, background: 'white', textAlign: 'center' }}>
-          <img src="/fonePay.jpeg" alt="FonePay QR" style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 6 }} />
+          <img src="/fonePay1.jpeg" alt="FonePay QR" style={{ width: '100%', height: 'auto', display: 'block', borderRadius: 6 }} />
         </div>
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.06em' }}>Scan & pay via FonePay</div>
