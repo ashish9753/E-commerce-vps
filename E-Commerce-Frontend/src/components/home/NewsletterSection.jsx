@@ -15,7 +15,7 @@ export default function NewsletterSection() {
   };
 
   return (
-    <div style={{ background: 'white', borderRadius: 8, padding: '28px 24px', boxShadow: '0 1px 3px #0000000d',
+    <div className="r-stack" style={{ background: 'white', borderRadius: 8, padding: '28px 24px', boxShadow: '0 1px 3px #0000000d',
       display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'center' }}>
       <div>
         <div style={{ fontSize: 11, fontWeight: 800, color: '#FF5A1F', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 8 }}>Newsletter</div>

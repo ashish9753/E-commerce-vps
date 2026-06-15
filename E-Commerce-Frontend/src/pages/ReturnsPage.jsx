@@ -477,7 +477,7 @@ export default function ReturnsPage() {
 
         {/* New Return wizard */}
         {view === 'new' && (
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 280px', gap:16, alignItems:'start' }}>
+          <div className="r-stack" style={{ display:'grid', gridTemplateColumns:'1fr 280px', gap:16, alignItems:'start' }}>
             <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
 
               {/* Step indicator */}

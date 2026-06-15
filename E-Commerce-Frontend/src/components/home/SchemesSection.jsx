@@ -10,7 +10,7 @@ const deals = [
 export default function SchemesSection() {
   const navigate = useNavigate();
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 12 }}>
+    <div className="r-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 12 }}>
       {deals.map((d, i) => (
         <div key={i} onClick={() => navigate(d.link)}
           style={{ background: d.bg, borderRadius: 8, padding: '18px 16px', cursor: 'pointer',

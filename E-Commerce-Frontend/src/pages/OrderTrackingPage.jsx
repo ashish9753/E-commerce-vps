@@ -311,7 +311,7 @@ export default function OrderTrackingPage() {
             )}
 
             {/* Main 2-col layout */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:16, alignItems:'start' }}>
+            <div className="r-stack" style={{ display:'grid', gridTemplateColumns:'1fr 320px', gap:16, alignItems:'start' }}>
 
               {/* Left col */}
               <div style={{ display:'flex', flexDirection:'column', gap:16 }}>

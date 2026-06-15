@@ -15,7 +15,7 @@ export default function PromiseBar() {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 12 }}>
+    <div className="r-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 12 }}>
       {items.map((item, i) => (
         <div key={i} style={{ background: 'white', borderRadius: 8, padding: '16px 16px',
           boxShadow: '0 1px 3px #0000000d', display: 'flex', gap: 12, alignItems: 'flex-start' }}>

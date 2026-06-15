@@ -735,7 +735,7 @@ export default function SupportPage() {
           )
         ) : (
           /* Desktop: side-by-side */
-          <div style={{ display: 'grid', gridTemplateColumns: '256px 1fr', gap: 14, alignItems: 'start' }}>
+          <div className="r-stack" style={{ display: 'grid', gridTemplateColumns: '256px 1fr', gap: 14, alignItems: 'start' }}>
             <TicketSidebar
               tickets={tickets}
               loading={loading}

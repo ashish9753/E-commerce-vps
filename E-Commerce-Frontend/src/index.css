@@ -140,6 +140,23 @@ input[type=number] { -moz-appearance: textfield; }
   .r-hero { height: 200px; }
 }
 
+/* ── Generic mobile helpers ──────────────────────────────────────────────
+   .r-stack    — collapse a "content + sidebar" grid (e.g. 1fr 320px) to a
+                 single column on phones. Keeps the desktop grid in the inline
+                 style; the !important here wins on small screens only.
+   .auth-grid  — login/register split screen: drop the decorative marketing
+                 panel (first child) and show just the form full-width.
+   .r-grid-4 / .r-grid-3 — dense card rows go 2-across on small screens. */
+@media (max-width: 768px) {
+  .r-stack { grid-template-columns: 1fr !important; }
+  .auth-grid { grid-template-columns: 1fr !important; }
+  .auth-grid > :first-child { display: none !important; }
+}
+@media (max-width: 640px) {
+  .r-grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .r-grid-3 { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
 /* Orders page filter row */
 .ord-filter-row {
   display: flex;

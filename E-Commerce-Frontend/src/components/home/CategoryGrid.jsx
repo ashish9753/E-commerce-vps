@@ -51,7 +51,7 @@ export default function CategoryGrid() {
     : FALLBACK_CATS;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 12 }}>
+    <div className="r-grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 12 }}>
       {catsToShow.map(cat => (
         <CatCard key={cat.name} cat={cat} subs={cat.subs} navigate={navigate} />
       ))}

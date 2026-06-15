@@ -1181,7 +1181,7 @@ export default function ProductDetailPage() {
               <p style={{ fontSize:14, marginTop:8 }}>No reviews yet. Be the first!</p>
             </div>
           ) : (
-            <div style={{ display:'grid', gridTemplateColumns:'260px 1fr', gap:40 }}>
+            <div className="r-stack" style={{ display:'grid', gridTemplateColumns:'260px 1fr', gap:40 }}>
               {/* Rating summary sidebar */}
               <div>
                 <div style={{ fontSize:48, fontWeight:900, lineHeight:1, color:'#0F1111' }}>{Number(product.rating||0).toFixed(1)}</div>

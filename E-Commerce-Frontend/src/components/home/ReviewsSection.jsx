@@ -8,7 +8,7 @@ export default function ReviewsSection() {
   return (
     <div style={{ background: 'white', borderRadius: 8, padding: '20px 20px', boxShadow: '0 1px 3px #0000000d', marginBottom: 12 }}>
       <div style={{ fontWeight: 800, fontSize: 20, color: '#0f172a', marginBottom: 16 }}>What our customers say</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+      <div className="r-grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
         {reviews.map((r, i) => (
           <div key={i} style={{ background: '#f8fafc', borderRadius: 8, padding: '16px', border: '1px solid #e5e7eb' }}>
             <div style={{ color: '#FF5A1F', fontSize: 28, lineHeight: 1, marginBottom: 8, fontFamily: 'Georgia, serif' }}>"</div>
