@@ -12,23 +12,55 @@ import { formatPriceShort } from '../utils/formatters';
  * Image lives at /public/fonePay.jpeg.
  */
 const ACCEPTED = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const MAX_BYTES = 10 * 1024 * 1024; // matches backend uploadPaymentProof
+const MAX_BYTES = 10 * 1024 * 1024; // original file cap before compression
+
+// Screenshots from phones / ChatGPT can be several MB and get rejected by a
+// reverse proxy (HTTP 413) before reaching the API. We downscale + re-encode to
+// JPEG in the browser so the upload is reliably small. Cloudinary downsizes
+// server-side anyway, so no quality is lost for verification purposes.
+const MAX_DIM = 1600;
+const JPEG_QUALITY = 0.82;
+
+async function compressImage(file) {
+  try {
+    const bitmap = await createImageBitmap(file);
+    let { width, height } = bitmap;
+    const scale = Math.min(1, MAX_DIM / Math.max(width, height));
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', JPEG_QUALITY));
+    bitmap.close?.();
+    if (!blob || blob.size >= file.size) return file; // keep original if no gain
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'payment';
+    return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+  } catch {
+    return file; // fall back to original on any decode/encode failure
+  }
+}
 
 export default function FonePayUploader({ amount, file, onFile, accent = '#FF9900', onError }) {
   const [preview, setPreview] = useState(null);
+  const [working, setWorking] = useState(false);
   const inputRef = useRef(null);
 
-  const pick = (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (!ACCEPTED.includes(f.type)) {
+  const pick = async (e) => {
+    const raw = e.target.files?.[0];
+    if (!raw) return;
+    if (!ACCEPTED.includes(raw.type)) {
       onError?.('Please upload a JPG, PNG or WebP image.');
       return;
     }
-    if (f.size > MAX_BYTES) {
+    if (raw.size > MAX_BYTES) {
       onError?.('Screenshot is too large (max 10 MB).');
       return;
     }
+    setWorking(true);
+    const f = await compressImage(raw);
+    setWorking(false);
     if (preview) URL.revokeObjectURL(preview);
     setPreview(URL.createObjectURL(f));
     onFile(f);
@@ -69,10 +101,10 @@ export default function FonePayUploader({ amount, file, onFile, accent = '#FF990
           border: `2px dashed ${accent}`, borderRadius: 10, padding: '22px 16px', cursor: 'pointer',
           background: '#fffdf7', textAlign: 'center',
         }}>
-          <span style={{ fontSize: 28 }}>📎</span>
-          <span style={{ fontWeight: 700, fontSize: 14, color: '#333' }}>Upload payment screenshot</span>
+          <span style={{ fontSize: 28 }}>{working ? '⏳' : '📎'}</span>
+          <span style={{ fontWeight: 700, fontSize: 14, color: '#333' }}>{working ? 'Processing image…' : 'Upload payment screenshot'}</span>
           <span style={{ fontSize: 12, color: '#888' }}>JPG, PNG or WebP · up to 10 MB</span>
-          <input ref={inputRef} type="file" accept="image/*" onChange={pick} style={{ display: 'none' }} />
+          <input ref={inputRef} type="file" accept="image/*" onChange={pick} disabled={working} style={{ display: 'none' }} />
         </label>
       ) : (
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', border: '1px solid #bbf7d0', background: '#f0fdf4', borderRadius: 10, padding: 12 }}>
