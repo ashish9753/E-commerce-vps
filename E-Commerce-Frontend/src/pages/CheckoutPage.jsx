@@ -447,7 +447,26 @@ export default function CheckoutPage() {
     }
     setDeliveryChecking(true);
     try {
-      if (addr.upayaLocationId) {
+      // IMPORTANT: mirror the backend's shipping-charge priority exactly
+      // (order.controller placeOrder), otherwise the checkout preview can show
+      // a different amount than what the customer is actually charged:
+      //   1. A custom DeliveryArea entry for the city (admin-set flat charge)
+      //   2. The Upaya live rate (when the address is an Upaya location)
+      //   3. (backend only) the global Delivery Settings default
+      let areaCharge = null;
+      if (addr.city && addr.city.trim()) {
+        try {
+          const { data } = await deliveryAreasApi.check(addr.city.trim());
+          const area = data.data;
+          if (area?.available && typeof area.deliveryCharge === 'number') {
+            areaCharge = area.deliveryCharge;
+          }
+        } catch { /* fall through to Upaya */ }
+      }
+
+      if (areaCharge !== null) {
+        setDeliveryCheck({ available: true, city: addr.city, deliveryCharge: areaCharge, source: 'area' });
+      } else if (addr.upayaLocationId) {
         const { data } = await upayaApi.getRate({
           location_id: addr.upayaLocationId,
           initial_weight: 1,
@@ -458,11 +477,7 @@ export default function CheckoutPage() {
         const charge = Number(rate.total ?? rate.amount ?? rate.rate ?? rate.deliveryCharge ?? 0);
         setDeliveryCheck({ available: true, city: addr.city, deliveryCharge: charge, source: 'upaya' });
       } else if (addr.city && addr.city.trim()) {
-        const { data } = await deliveryAreasApi.check(addr.city.trim());
-        const fallback = data.data;
-        setDeliveryCheck(fallback?.available
-          ? fallback
-          : { available: false, reason: 'no_upaya_location', message: 'Please edit this address and pick a city from the delivery list.' });
+        setDeliveryCheck({ available: false, reason: 'no_upaya_location', message: 'Please edit this address and pick a city from the delivery list.' });
       } else {
         setDeliveryCheck({ available: false, reason: 'no_city', message: 'This address has no city. Please edit it.' });
       }

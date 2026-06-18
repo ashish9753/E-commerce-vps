@@ -580,6 +580,42 @@ export default function OrdersPage() {
                     })}
                   </div>
 
+                  {/* Price breakdown — always show the delivery charge (matches the
+                      invoice & tracking page, which use the order's stored totals) */}
+                  {(() => {
+                    const itemsAmt = order.itemsPrice ?? (order.orderItems || []).reduce((s, i) => s + (i.price || 0) * (i.quantity || 0), 0);
+                    const disc     = order.discountAmount || 0;
+                    const shipAmt  = typeof order.shippingPrice === 'number'
+                      ? order.shippingPrice
+                      : Math.max(0, (order.totalPrice || 0) - itemsAmt + disc);
+                    return (
+                      <div style={{ borderTop:'1px solid #eee', padding:'12px 20px', display:'flex', justifyContent:'flex-end' }}>
+                        <div style={{ width:'100%', maxWidth:300, display:'flex', flexDirection:'column', gap:6, fontSize:13 }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', color:'#555' }}>
+                            <span>Items ({order.orderItems?.length || 0}):</span>
+                            <span>{formatPriceShort(itemsAmt)}</span>
+                          </div>
+                          {disc > 0 && (
+                            <div style={{ display:'flex', justifyContent:'space-between', color:'#007600' }}>
+                              <span>Discount:</span>
+                              <span>−{formatPriceShort(disc)}</span>
+                            </div>
+                          )}
+                          <div style={{ display:'flex', justifyContent:'space-between', color:'#555' }}>
+                            <span>Delivery:</span>
+                            <span style={{ color: shipAmt === 0 ? '#007600' : '#333', fontWeight:600 }}>
+                              {shipAmt === 0 ? 'FREE' : formatPriceShort(shipAmt)}
+                            </span>
+                          </div>
+                          <div style={{ display:'flex', justifyContent:'space-between', fontWeight:800, fontSize:15, color:'#B12704', borderTop:'1px solid #eee', paddingTop:6 }}>
+                            <span>Order Total:</span>
+                            <span>{formatPriceShort(order.totalPrice)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Footer */}
                   <div style={{ borderTop:'1px solid #eee', padding:'12px 20px', display:'flex', gap:12, alignItems:'center', flexWrap:'wrap' }}>
                     <span style={{ fontSize:12, color:'#888' }}>

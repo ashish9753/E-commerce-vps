@@ -26,6 +26,7 @@ import { PERMISSION_GROUPS, ALL_PERMISSIONS } from '../../utils/permissions';
 import { cleanPhone, isValidPhone } from '../../utils/validators';
 import { settingsApi } from '../../api/settings';
 import { paymentsApi } from '../../api/payments';
+import { invalidateDeliverySettings } from '../../hooks/useDeliverySettings';
 import { useFormDraft } from '../../hooks/useFormDraft';
 import { useCatalog } from '../../context/CatalogContext';
 import { C, useDashboardTheme } from '../../theme/dashboardTheme';
@@ -3702,6 +3703,7 @@ function AdminSettingsTab() {
   const saveDlv = async () => {
     setDlvSaving(true);
     await settingsApi.updateDeliverySettings(dlv).catch(() => {});
+    invalidateDeliverySettings(); // refresh cart/checkout/product estimates without a reload
     setDlvSaving(false); setDlvSaved(true);
     setTimeout(() => setDlvSaved(false), 2500);
   };

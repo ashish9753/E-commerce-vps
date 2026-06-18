@@ -11,6 +11,7 @@ import { deliveryAreasApi } from '../../api/deliveryAreas';
 import { upayaApi } from '../../api/upaya';
 import { getErrorMessage } from '../../api/client';
 import { settingsApi } from '../../api/settings';
+import { invalidateDeliverySettings } from '../../hooks/useDeliverySettings';
 import { couponsApi } from '../../api/coupons';
 import { productsApi } from '../../api/products';
 import { attributesApi } from '../../api/catalog';
@@ -2516,6 +2517,7 @@ function EmployeeSettingsTab() {
   const saveDlv = async () => {
     setDlvSaving(true);
     await settingsApi.updateDeliverySettings(dlv).catch(() => {});
+    invalidateDeliverySettings(); // refresh cart/checkout/product estimates without a reload
     setDlvSaving(false); setDlvSaved(true);
     setTimeout(() => setDlvSaved(false), 2500);
   };
