@@ -22,10 +22,6 @@ const sweepOnce = async () => {
       paymentMethod: "ONLINE",
       paymentStatus: "PENDING",
       orderStatus:   "PLACED",
-      // Only nudge orders where the customer has NOT uploaded a payment
-      // screenshot yet. Once a proof is submitted (PENDING_REVIEW) or rejected
-      // (awaiting re-upload) it's in staff's hands, not auto-managed.
-      paymentReviewStatus: "NOT_REQUIRED",
       createdAt:     { $lt: reminderCutoff, $gte: cutoff },
       paymentReminderSentAt: null,
     }).limit(100);
@@ -56,9 +52,6 @@ const sweepOnce = async () => {
       paymentMethod: "ONLINE",
       paymentStatus: "PENDING",
       orderStatus:   "PLACED",
-      // Never auto-cancel an order whose payment screenshot is under review or
-      // was rejected (the customer can re-upload) — only ones with no proof.
-      paymentReviewStatus: "NOT_REQUIRED",
       createdAt:     { $lt: cutoff },
     }).limit(50);
 

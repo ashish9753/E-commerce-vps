@@ -1,20 +1,23 @@
 import { Router } from "express";
 import {
-  submitPaymentProof, reviewPayment, getPaymentByOrder,
+  createFonepayQr, getFonepayStatus, getPaymentByOrder, getFonepayBanks,
 } from "../controllers/payment.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
-import { authorize } from "../middleware/role.middleware.js";
-import { uploadPaymentProof } from "../middleware/upload.middleware.js";
 
 const router = Router();
 
 router.use(protect);
 
-// Customer uploads a FonePay payment screenshot for their order
-router.post("/proof/:orderId", uploadPaymentProof("screenshot"), submitPaymentProof);
-router.get("/order/:orderId", getPaymentByOrder);
+// Fonepay Checkout Intent — automatic dynamic-QR payments.
+//   POST /payments/fonepay/:orderId/qr      → generate a single-use QR
+//   GET  /payments/fonepay/:orderId/status  → live status (settles on success)
+router.post("/fonepay/:orderId/qr", createFonepayQr);
+router.get("/fonepay/:orderId/status", getFonepayStatus);
 
-// Admin/employee verify (accept/reject) the uploaded screenshot
-router.patch("/:orderId/review", authorize("admin", "employee"), reviewPayment);
+// Bank list for the (mobile) intent flow — optional.
+router.get("/fonepay/banks", getFonepayBanks);
+
+// Read payment info for an order (owner or staff).
+router.get("/order/:orderId", getPaymentByOrder);
 
 export default router;
