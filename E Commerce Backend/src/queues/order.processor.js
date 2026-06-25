@@ -37,7 +37,6 @@ export const processOrderJob = async (job) => {
     couponId,
     estimatedDeliveryDate,
     codBookingAmount = 0,
-    codBookingUtr = "",
     codBookingStatus = "NOT_REQUIRED",
   } = job.data;
 
@@ -107,7 +106,6 @@ export const processOrderJob = async (job) => {
         : new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
       statusHistory: [{ status: "PLACED", timestamp: new Date() }],
       codBookingAmount,
-      codBookingUtr,
       codBookingStatus,
     };
 
@@ -175,7 +173,7 @@ export const processOrderJob = async (job) => {
       ? {
           user: userId,
           title: "Order Pending Payment ⏳",
-          message: `Order ${order.orderNumber} (Rs. ${totalPrice}) is awaiting payment. Please scan the FonePay QR, pay, and upload your payment screenshot from My Orders within ${pendingTimeoutMin} minutes — or cancel the order.`,
+          message: `Order ${order.orderNumber} (Rs. ${totalPrice}) is awaiting payment. Please scan the Fonepay QR and pay from My Orders within ${pendingTimeoutMin} minutes — or cancel the order.`,
           type: "ORDER",
           link: `/orders`,
         }

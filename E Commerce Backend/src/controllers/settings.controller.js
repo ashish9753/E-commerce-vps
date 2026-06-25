@@ -11,7 +11,7 @@ const DEFAULT_COD = {
   // COD availability
   codEnabled: true,        // when false, COD option hidden at checkout
 
-  // COD booking (non-refundable, collected via Razorpay before order)
+  // COD booking (non-refundable advance, collected via Fonepay before the order is confirmed)
   bookingEnabled: false,
   bookingType: "flat",     // "flat" | "percent"
   bookingValue: 500,

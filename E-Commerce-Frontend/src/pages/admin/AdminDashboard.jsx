@@ -25,7 +25,6 @@ import { ProductsTab, ProductForm, DeliveryAreasTab } from '../employee/Employee
 import { PERMISSION_GROUPS, ALL_PERMISSIONS } from '../../utils/permissions';
 import { cleanPhone, isValidPhone } from '../../utils/validators';
 import { settingsApi } from '../../api/settings';
-import { paymentsApi } from '../../api/payments';
 import { invalidateDeliverySettings } from '../../hooks/useDeliverySettings';
 import { useFormDraft } from '../../hooks/useFormDraft';
 import { useCatalog } from '../../context/CatalogContext';
@@ -1559,8 +1558,6 @@ function OrdersTab({ globalSearch = '' }) {
   const [refundForm, setRefundForm]   = useState({ reason: '', adminNote: '', refundAmount: '' });
   const [refunding, setRefunding]     = useState(false);
   const [expandedId, setExpandedId]   = useState(null);
-  const [reviewingPay, setReviewingPay] = useState(null); // orderId being verified
-  const [payImg, setPayImg]           = useState(null);   // screenshot url to enlarge
   // Absolute tab counts (independent of active status filter). Backend returns
   // statusBreakdown array + pendingPaymentCount so all tabs stay populated.
   const [statusCounts, setStatusCounts] = useState({});
@@ -1653,27 +1650,6 @@ function OrdersTab({ globalSearch = '' }) {
     }
   };
 
-  // Verify (accept) or reject a customer's FonePay payment screenshot. Works
-  // for both the full ONLINE payment and the COD booking advance — the backend
-  // branches on the order's paymentMethod.
-  const handleReviewPayment = async (order, action) => {
-    let note = '';
-    if (action === 'reject') {
-      note = window.prompt(`Reject payment for ${order.orderNumber}?\n\nReason (shown to customer):`, 'Payment not received / invalid screenshot');
-      if (note === null) return;
-    }
-    setReviewingPay(order._id);
-    try {
-      const { data } = await paymentsApi.reviewPayment(order._id, { action, note });
-      const updated = data?.data?.order;
-      if (updated) setAll(prev => prev.map(x => x._id === order._id ? { ...x, ...updated } : x));
-    } catch (e) {
-      alert(e?.response?.data?.message || 'Failed to update payment');
-    } finally {
-      setReviewingPay(null);
-    }
-  };
-
   const openRefund = (o) => {
     const nonRefundable = (o.codBookingStatus === 'PAID' && o.codBookingAmount > 0) ? o.codBookingAmount : 0;
     setRefundForm({ reason: 'Admin initiated refund', adminNote: '', refundAmount: o.totalPrice - nonRefundable });
@@ -1704,13 +1680,6 @@ function OrdersTab({ globalSearch = '' }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, opacity: loading ? 0.55 : 1, transition: 'opacity .2s', pointerEvents: loading ? 'none' : 'auto' }}>
-      {/* Payment screenshot enlarge */}
-      {payImg && (
-        <div onClick={() => setPayImg(null)} style={{ position:'fixed', inset:0, background:'#000d', zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center', padding:24 }}>
-          <img src={payImg} alt="Payment screenshot" onClick={e => e.stopPropagation()}
-            style={{ maxWidth:'90vw', maxHeight:'90vh', objectFit:'contain', borderRadius:10, boxShadow:'0 20px 60px rgba(0,0,0,.5)' }} />
-        </div>
-      )}
       {/* Force Refund Modal */}
       {refundModal && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -2006,95 +1975,27 @@ function OrdersTab({ globalSearch = '' }) {
                           <span style={{ fontWeight:700, fontSize:13, color:C.text, marginLeft:'auto' }}>{fmtRs(o.totalPrice)}</span>
                         </div>
 
-                        {/* FonePay payment verification — customer screenshot + accept/reject */}
-                        {(o.paymentProof?.url || (o.paymentMethod === 'COD' && o.codBookingScreenshot?.url)) && (
-                          <div style={{ marginBottom:14, border:`1px solid ${C.line}`, borderRadius:8, padding:'12px 14px', background:C.bg }}>
-                            <div style={{ fontSize:11, fontWeight:700, color:C.mute, textTransform:'uppercase', letterSpacing:'.05em', marginBottom:10 }}>
-                              🧾 FonePay Payment Verification
+                        {/* Fonepay payment status — confirmed automatically by the gateway */}
+                        {(o.paymentMethod === 'ONLINE' || (o.paymentMethod === 'COD' && o.codBookingAmount > 0)) && (
+                          <div style={{ marginBottom:14, border:`1px solid ${C.line}`, borderRadius:8, padding:'10px 14px', background:C.bg }}>
+                            <div style={{ fontSize:11, fontWeight:700, color:C.mute, textTransform:'uppercase', letterSpacing:'.05em', marginBottom:8 }}>
+                              📲 Fonepay Payment
                             </div>
-
-                            {o.paymentProof?.url && (() => {
-                              const st = o.paymentReviewStatus;
-                              const pending = st === 'PENDING_REVIEW';
-                              const badgeColor = st === 'VERIFIED' ? C.green : st === 'REJECTED' ? C.red : C.yellow;
-                              return (
-                                <div style={{ display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap' }}>
-                                  <img src={o.paymentProof.url} alt="Payment screenshot" onClick={() => setPayImg(o.paymentProof.url)}
-                                    style={{ width:96, height:96, objectFit:'cover', borderRadius:8, border:`1px solid ${C.line}`, cursor:'zoom-in', flexShrink:0 }} />
-                                  <div style={{ flex:1, minWidth:180 }}>
-                                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' }}>
-                                      <span style={{ fontSize:12, color:C.sub }}>Online payment of <b style={{ color:C.text }}>{fmtRs(o.totalPrice)}</b></span>
-                                      <Badge text={pending ? 'UNDER REVIEW' : st} color={badgeColor} />
-                                    </div>
-                                    {st === 'REJECTED' && o.paymentReviewNote && (
-                                      <div style={{ fontSize:11, color:C.red, marginBottom:6 }}>Reason: {o.paymentReviewNote}</div>
-                                    )}
-                                    {pending ? (
-                                      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                                        <button onClick={() => handleReviewPayment(o, 'accept')} disabled={reviewingPay === o._id || updating === o._id}
-                                          style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:'none', background:C.green, color:'white', cursor: reviewingPay===o._id?'not-allowed':'pointer', opacity: reviewingPay===o._id?0.6:1 }}>
-                                          {reviewingPay === o._id ? '…' : '✓ Accept payment'}
-                                        </button>
-                                        <button onClick={() => handleReviewPayment(o, 'reject')} disabled={reviewingPay === o._id || updating === o._id}
-                                          title="Reject this screenshot but keep the order — the customer can pay again and re-upload"
-                                          style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.red}55`, background:C.red+'18', color:C.red, cursor: reviewingPay===o._id?'not-allowed':'pointer' }}>
-                                          ✕ Reject · let them re-upload
-                                        </button>
-                                        <button onClick={() => handleCancel(o._id)} disabled={reviewingPay === o._id || updating === o._id}
-                                          title="Cancel the order and release the items back to stock so other customers can buy"
-                                          style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.line}`, background:C.surf, color:C.text, cursor: (reviewingPay===o._id||updating===o._id)?'not-allowed':'pointer' }}>
-                                          🚫 Reject &amp; cancel order
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <div style={{ fontSize:11, color:C.mute }}>
-                                        {st === 'VERIFIED' ? 'Payment verified — order confirmed.' : 'Awaiting a valid screenshot from the customer.'}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })()}
-
-                            {o.paymentMethod === 'COD' && o.codBookingScreenshot?.url && (() => {
-                              const st = o.codBookingStatus;
-                              const pending = st === 'PENDING';
-                              const badgeColor = st === 'PAID' ? C.green : st === 'REJECTED' ? C.red : C.yellow;
-                              return (
-                                <div style={{ display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap' }}>
-                                  <img src={o.codBookingScreenshot.url} alt="Booking screenshot" onClick={() => setPayImg(o.codBookingScreenshot.url)}
-                                    style={{ width:96, height:96, objectFit:'cover', borderRadius:8, border:`1px solid ${C.line}`, cursor:'zoom-in', flexShrink:0 }} />
-                                  <div style={{ flex:1, minWidth:180 }}>
-                                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap' }}>
-                                      <span style={{ fontSize:12, color:C.sub }}>COD booking advance <b style={{ color:C.text }}>{fmtRs(o.codBookingAmount)}</b></span>
-                                      <Badge text={st} color={badgeColor} />
-                                    </div>
-                                    {pending ? (
-                                      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                                        <button onClick={() => handleReviewPayment(o, 'accept')} disabled={reviewingPay === o._id || updating === o._id}
-                                          style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:'none', background:C.green, color:'white', cursor: reviewingPay===o._id?'not-allowed':'pointer', opacity: reviewingPay===o._id?0.6:1 }}>
-                                          {reviewingPay === o._id ? '…' : '✓ Accept booking'}
-                                        </button>
-                                        <button onClick={() => handleReviewPayment(o, 'reject')} disabled={reviewingPay === o._id || updating === o._id}
-                                          title="Reject this screenshot but keep the order — the customer can pay again and re-upload"
-                                          style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.red}55`, background:C.red+'18', color:C.red, cursor: reviewingPay===o._id?'not-allowed':'pointer' }}>
-                                          ✕ Reject · let them re-upload
-                                        </button>
-                                        <button onClick={() => handleCancel(o._id)} disabled={reviewingPay === o._id || updating === o._id}
-                                          title="Cancel the order and release the items back to stock so other customers can buy"
-                                          style={{ fontSize:12, fontWeight:700, padding:'6px 14px', borderRadius:6, border:`1px solid ${C.line}`, background:C.surf, color:C.text, cursor: (reviewingPay===o._id||updating===o._id)?'not-allowed':'pointer' }}>
-                                          🚫 Reject &amp; cancel order
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <div style={{ fontSize:11, color:C.mute }}>
-                                        {st === 'PAID' ? 'Booking advance verified.' : 'Awaiting a valid booking screenshot.'}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })()}
+                            {o.paymentMethod === 'ONLINE' && (
+                              <div style={{ fontSize:12, color:C.sub, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                                <span>Online <b style={{ color:C.text }}>{fmtRs(o.totalPrice)}</b></span>
+                                <Badge text={o.paymentStatus==='PAID'?'PAID':'AWAITING PAYMENT'} color={o.paymentStatus==='PAID'?C.green:C.yellow} />
+                                {o.fonepayPayment?.traceId && <span style={{ fontSize:11, color:C.mute }}>Trace: {o.fonepayPayment.traceId}</span>}
+                                {o.fonepayPayment?.prn && <span style={{ fontSize:11, color:C.mute }}>Ref: {o.fonepayPayment.prn}</span>}
+                              </div>
+                            )}
+                            {o.paymentMethod === 'COD' && o.codBookingAmount > 0 && (
+                              <div style={{ fontSize:12, color:C.sub, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginTop: o.paymentMethod==='ONLINE'?6:0 }}>
+                                <span>Booking advance <b style={{ color:C.text }}>{fmtRs(o.codBookingAmount)}</b></span>
+                                <Badge text={o.codBookingStatus} color={o.codBookingStatus==='PAID'?C.green:C.yellow} />
+                                {o.fonepayBooking?.traceId && <span style={{ fontSize:11, color:C.mute }}>Trace: {o.fonepayBooking.traceId}</span>}
+                              </div>
+                            )}
                           </div>
                         )}
 

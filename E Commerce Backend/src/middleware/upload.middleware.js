@@ -25,14 +25,6 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 },
 });
 
-// Payment screenshots come straight from phones and are often larger than the
-// 2 MB product-image cap — allow up to 10 MB (Cloudinary downsizes on upload).
-const paymentProofUpload = multer({
-  storage,
-  fileFilter: imageFilter,
-  limits: { fileSize: 10 * 1024 * 1024 },
-});
-
 const evidenceUpload = multer({
   storage,
   fileFilter: evidenceFilter,
@@ -40,7 +32,6 @@ const evidenceUpload = multer({
 });
 
 export const uploadSingle   = (field)        => upload.single(field);
-export const uploadPaymentProof = (field)    => paymentProofUpload.single(field);
 export const uploadMultiple = (field, max=5) => upload.array(field, max);
 export const uploadFields   = (fields)       => upload.fields(fields);
 export const uploadReturnEvidence = evidenceUpload.fields([
