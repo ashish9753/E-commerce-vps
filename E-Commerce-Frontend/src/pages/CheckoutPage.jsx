@@ -6,14 +6,13 @@ import { useOrders } from '../context/OrderContext';
 import { useToast } from '../context/ToastContext';
 import { usersApi } from '../api/users';
 import { settingsApi } from '../api/settings';
-import { paymentsApi } from '../api/payments';
 import { deliveryAreasApi } from '../api/deliveryAreas';
 import { upayaApi } from '../api/upaya';
 import { couponsApi } from '../api/coupons';
 import { formatPriceShort } from '../utils/formatters';
 import { cleanPhone, isValidPhone } from '../utils/validators';
 import { getErrorMessage } from '../api/client';
-import FonePayUploader from '../components/FonePayUploader';
+import FonepayCheckout from '../components/FonepayCheckout';
 
 /* ── tiny helpers ── */
 const Inp = ({ label, value, onChange, placeholder, half }) => (
@@ -353,12 +352,9 @@ export default function CheckoutPage() {
   const [loading, setLoading]                 = useState(false);
   const [addrLoading, setAddrLoading]         = useState(true);
   const [codCfg, setCodCfg]                   = useState(null);
-  // FonePay manual payment — screenshot files held client-side until the order
-  // is created, then uploaded. `paymentScreenshot` is the full online payment;
-  // `bookingScreenshot` is the COD non-refundable advance.
-  const [paymentScreenshot, setPaymentScreenshot] = useState(null);
-  const [bookingScreenshot, setBookingScreenshot] = useState(null);
-  const bookingConfirmed = !!bookingScreenshot;
+  // After the order is created we show the live Fonepay QR panel for the
+  // customer to pay. `pendingPayment` = { orderId, purpose, amount } | null.
+  const [pendingPayment, setPendingPayment]   = useState(null);
   const [paymentMethod, setPaymentMethod]       = useState('COD');
   const [deliveryCheck, setDeliveryCheck]       = useState(null); // { available, city, deliveryCharge } | null
   const [deliveryChecking, setDeliveryChecking] = useState(false);
@@ -529,59 +525,18 @@ export default function CheckoutPage() {
     }
   };
 
-  // Upload a FonePay screenshot to the just-created order. Returns true on
-  // success; on failure the order still exists (PENDING) so the customer can
-  // re-upload from My Orders — we surface a clear message and route them there.
-  const uploadScreenshot = async (orderId, file) => {
-    const fd = new FormData();
-    fd.append('screenshot', file);
-    await paymentsApi.submitProof(orderId, fd);
-  };
-
   const handlePlaceOrder = async () => {
     if (!selectedAddressId) { toast('Please select a delivery address', 'error'); return; }
-    if (paymentMethod === 'FONEPAY' && !paymentScreenshot) {
-      toast('Please upload your FonePay payment screenshot first', 'error'); return;
-    }
-    if (paymentMethod === 'COD' && codBookingRequired && !bookingScreenshot) {
-      toast('Please upload your booking payment screenshot first', 'error'); return;
-    }
-
-    setLoading(true);
-
-    if (paymentMethod === 'FONEPAY') {
-      // Step 1: Create the order in DB (PENDING — awaiting payment verification)
-      const result = await placeOrder({
-        shippingAddressId: selectedAddressId,
-        paymentMethod: 'ONLINE',
-        ...buyNowExtra,
-      });
-      if (!result.success) {
-        toast(result.error, 'error');
-        setLoading(false);
-        return;
-      }
-
-      // Step 2: Attach the payment screenshot for staff to verify
-      try {
-        await uploadScreenshot(result.order._id, paymentScreenshot);
-        setOrderSubmitted(true);
-        if (!buyNow) await clearCart();
-        toast('Order placed! Your payment is being verified by our team.');
-      } catch (err) {
-        setOrderSubmitted(true);
-        if (!buyNow) await clearCart();
-        toast(`${getErrorMessage(err)} — you can re-upload from My Orders.`, 'warn');
-      }
-      setLoading(false);
-      navigate('/orders');
+    if (orderAmountBlocked) {
+      toast(codTooLow ? `COD minimum is Rs. ${minOrderAmt}` : `COD maximum is Rs. ${maxOrderAmt}`, 'error');
       return;
     }
 
-    // COD flow
+    setLoading(true);
+    const method = paymentMethod === 'FONEPAY' ? 'ONLINE' : 'COD';
     const result = await placeOrder({
       shippingAddressId: selectedAddressId,
-      paymentMethod: 'COD',
+      paymentMethod: method,
       ...buyNowExtra,
     });
     if (!result.success) {
@@ -590,19 +545,38 @@ export default function CheckoutPage() {
       return;
     }
 
-    // COD with a non-refundable booking advance — attach its screenshot too
-    if (codBookingRequired && bookingScreenshot) {
-      try {
-        await uploadScreenshot(result.order._id, bookingScreenshot);
-      } catch (err) {
-        toast(`Order placed, but booking screenshot failed: ${getErrorMessage(err)} — re-upload from My Orders.`, 'warn');
-      }
-    }
-
-    setLoading(false);
+    // Order created (PENDING). Mark submitted so the empty-cart guard doesn't
+    // redirect us away from the live QR panel, then clear the cart.
     setOrderSubmitted(true);
     if (!buyNow) await clearCart();
+    setLoading(false);
+
+    // Online payment OR a COD booking advance → open the live Fonepay QR panel.
+    if (paymentMethod === 'FONEPAY') {
+      setPendingPayment({ orderId: result.order._id, purpose: 'full', amount: checkoutTotal });
+      return;
+    }
+    if (codBookingRequired) {
+      setPendingPayment({ orderId: result.order._id, purpose: 'booking', amount: codBookingAmount });
+      return;
+    }
+
+    // Plain COD — nothing to pay now.
     toast('Order placed successfully!');
+    navigate('/orders');
+  };
+
+  // Fonepay QR panel callbacks.
+  const handlePaymentSuccess = () => {
+    setPendingPayment(null);
+    toast(pendingPayment?.purpose === 'booking'
+      ? 'Booking confirmed! Your COD order is placed.'
+      : 'Payment successful! Your order is confirmed.');
+    navigate('/orders');
+  };
+  const handlePaymentLater = () => {
+    setPendingPayment(null);
+    toast('Order placed. You can complete the payment anytime from My Orders.', 'warn');
     navigate('/orders');
   };
 
@@ -616,6 +590,35 @@ export default function CheckoutPage() {
 
   return (
     <div style={{ background: '#f0f2f2', minHeight: '100vh' }}>
+      {/* Live Fonepay QR — shown after the order is created */}
+      {pendingPayment && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(17,24,39,.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 560, boxShadow: '0 20px 60px rgba(0,0,0,.3)', overflow: 'hidden' }}>
+            <div style={{ background: pendingPayment.purpose === 'booking' ? '#f59e0b' : '#e2117b', padding: '16px 22px' }}>
+              <div style={{ color: 'white', fontWeight: 800, fontSize: 17 }}>
+                {pendingPayment.purpose === 'booking' ? 'Pay your booking advance' : 'Complete your payment'}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,.85)', fontSize: 12, marginTop: 2 }}>
+                Order placed — pay now to confirm it
+              </div>
+            </div>
+            <div style={{ padding: '22px 24px' }}>
+              <FonepayCheckout
+                orderId={pendingPayment.orderId}
+                purpose={pendingPayment.purpose}
+                amount={pendingPayment.amount}
+                accent={pendingPayment.purpose === 'booking' ? '#f59e0b' : '#e2117b'}
+                onSuccess={handlePaymentSuccess}
+                onCancel={handlePaymentLater}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Checkout header */}
       <div style={{ background: '#131921', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 20, borderBottom: '1px solid #3a4553' }}>
         <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }} onClick={() => navigate('/')}>
@@ -851,12 +854,12 @@ export default function CheckoutPage() {
                       <span style={{ color: 'white', fontWeight: 900, fontSize: 18 }}>QR</span>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 15 }}>Pay via FonePay (QR)</div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>Pay via Fonepay (QR)</div>
                       <div style={{ fontSize: 13, color: '#555', marginTop: 3 }}>
-                        Scan the QR, pay, and upload your payment screenshot.
+                        Scan a secure QR and pay from any banking / wallet app.
                       </div>
                       <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, marginTop: 4 }}>
-                        ✓ Order confirmed once our team verifies your payment
+                        ✓ Instant, automatic confirmation — no screenshots needed
                       </div>
                     </div>
                     <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${paymentMethod === 'FONEPAY' ? '#e2117b' : '#ccc'}`,
@@ -894,7 +897,7 @@ export default function CheckoutPage() {
                           <div style={{ fontSize: 13, color: '#555', marginTop: 3 }}>Pay the remaining amount in cash when your order is delivered.</div>
                           {codBookingRequired ? (
                             <div style={{ fontSize: 12, color: '#c2410c', fontWeight: 700, marginTop: 4 }}>
-                              ⚠ Booking amount of {formatPriceShort(codBookingAmount)} required via UPI (non-refundable)
+                              ⚠ Booking advance of {formatPriceShort(codBookingAmount)} via Fonepay (non-refundable)
                             </div>
                           ) : (
                             <div style={{ fontSize: 12, color: '#007600', fontWeight: 600, marginTop: 4 }}>✓ No advance payment needed</div>
@@ -910,48 +913,33 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* FonePay QR + screenshot — full online payment */}
+              {/* Fonepay full online payment — QR is shown after you place the order */}
               {paymentMethod === 'FONEPAY' && (
-                <div style={{ background: 'white', border: `2px solid ${paymentScreenshot ? '#16a34a' : '#e2117b'}`, borderRadius: 6, overflow: 'hidden' }}>
-                  <div style={{ background: paymentScreenshot ? '#16a34a' : '#e2117b', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 20 }}>{paymentScreenshot ? '✅' : '📲'}</span>
+                <div style={{ background: 'white', border: '2px solid #e2117b', borderRadius: 6, overflow: 'hidden' }}>
+                  <div style={{ background: '#e2117b', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>📲</span>
                     <div>
-                      <div style={{ color: 'white', fontWeight: 800, fontSize: 15 }}>
-                        {paymentScreenshot ? 'Payment screenshot ready' : 'Pay with FonePay QR'}
-                      </div>
-                      <div style={{ color: 'rgba(255,255,255,.85)', fontSize: 12 }}>Your order is confirmed once our team verifies your payment</div>
+                      <div style={{ color: 'white', fontWeight: 800, fontSize: 15 }}>Pay {formatPriceShort(checkoutTotal)} with Fonepay</div>
+                      <div style={{ color: 'rgba(255,255,255,.85)', fontSize: 12 }}>A secure QR appears right after you place your order — payment confirms automatically.</div>
                     </div>
-                  </div>
-                  <div style={{ padding: '20px 24px' }}>
-                    <FonePayUploader
-                      amount={checkoutTotal}
-                      file={paymentScreenshot}
-                      onFile={setPaymentScreenshot}
-                      accent="#e2117b"
-                      onError={(m) => toast(m, 'error')}
-                    />
                   </div>
                 </div>
               )}
 
-              {/* FonePay booking block — only for COD when a booking advance is required */}
+              {/* COD booking advance — paid via Fonepay QR after placing the order */}
               {paymentMethod === 'COD' && codBookingRequired && (
-                <div style={{ background: 'white', border: `2px solid ${bookingConfirmed ? '#16a34a' : '#f59e0b'}`, borderRadius: 6, overflow: 'hidden' }}>
-                  <div style={{ background: bookingConfirmed ? '#16a34a' : '#f59e0b', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 20 }}>{bookingConfirmed ? '✅' : '⚡'}</span>
+                <div style={{ background: 'white', border: '2px solid #f59e0b', borderRadius: 6, overflow: 'hidden' }}>
+                  <div style={{ background: '#f59e0b', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>⚡</span>
                     <div>
-                      <div style={{ color: 'white', fontWeight: 800, fontSize: 15 }}>
-                        {bookingConfirmed ? 'Booking screenshot ready' : 'Pay Booking Amount'}
-                      </div>
-                      <div style={{ color: 'rgba(255,255,255,.8)', fontSize: 12 }}>Non-refundable · Required to confirm your COD order</div>
+                      <div style={{ color: 'white', fontWeight: 800, fontSize: 15 }}>Booking advance required</div>
+                      <div style={{ color: 'rgba(255,255,255,.8)', fontSize: 12 }}>Non-refundable · Pay via Fonepay QR to confirm your COD order</div>
                     </div>
                   </div>
-
                   <div style={{ padding: '20px 24px' }}>
-                    {/* Amount split */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20, padding: '16px', background: '#fefce8', borderRadius: 8, border: '1px solid #fde68a' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '16px', background: '#fefce8', borderRadius: 8, border: '1px solid #fde68a' }}>
                       <div style={{ textAlign: 'center', flex: 1 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '.06em' }}>Pay Now (FonePay)</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '.06em' }}>Pay Now (Fonepay)</div>
                         <div style={{ fontSize: 28, fontWeight: 900, color: '#b45309' }}>{formatPriceShort(codBookingAmount)}</div>
                         <div style={{ fontSize: 11, color: '#92400e' }}>Non-refundable booking</div>
                       </div>
@@ -962,14 +950,6 @@ export default function CheckoutPage() {
                         <div style={{ fontSize: 11, color: '#6b7280' }}>Cash at doorstep</div>
                       </div>
                     </div>
-
-                    <FonePayUploader
-                      amount={codBookingAmount}
-                      file={bookingScreenshot}
-                      onFile={setBookingScreenshot}
-                      accent="#f59e0b"
-                      onError={(m) => toast(m, 'error')}
-                    />
                   </div>
                 </div>
               )}
@@ -982,12 +962,6 @@ export default function CheckoutPage() {
                 <button onClick={() => {
                   if (orderAmountBlocked) {
                     toast(codTooLow ? `COD minimum is Rs. ${minOrderAmt}` : `COD maximum is Rs. ${maxOrderAmt}`, 'error'); return;
-                  }
-                  if (paymentMethod === 'FONEPAY' && !paymentScreenshot) {
-                    toast('Please upload your FonePay payment screenshot first', 'error'); return;
-                  }
-                  if (paymentMethod === 'COD' && codBookingRequired && !bookingScreenshot) {
-                    toast('Please upload your booking payment screenshot first', 'error'); return;
                   }
                   setStep(3);
                 }}
@@ -1038,19 +1012,17 @@ export default function CheckoutPage() {
                     <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Payment method</div>
                     {paymentMethod === 'FONEPAY' ? (
                       <>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>FonePay (QR Payment)</div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>Fonepay (QR Payment)</div>
                         <div style={{ fontSize: 12, color: '#e2117b', marginTop: 2, fontWeight: 600 }}>
-                          {paymentScreenshot
-                            ? `✓ Screenshot attached · ${formatPriceShort(checkoutTotal)} — pending verification`
-                            : `Upload your payment screenshot · ${formatPriceShort(checkoutTotal)}`}
+                          Scan to pay {formatPriceShort(checkoutTotal)} after placing — confirms automatically
                         </div>
                       </>
                     ) : (
                       <>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>Cash on Delivery</div>
-                        {codBookingRequired && bookingConfirmed ? (
+                        {codBookingRequired ? (
                           <div style={{ fontSize: 12, marginTop: 4 }}>
-                            <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ Booking {formatPriceShort(codBookingAmount)} screenshot attached (FonePay)</span>
+                            <span style={{ color: '#b45309', fontWeight: 700 }}>Booking {formatPriceShort(codBookingAmount)} via Fonepay</span>
                             <span style={{ color: '#555', marginLeft: 6 }}>· {formatPriceShort(checkoutTotal - codBookingAmount)} on delivery</span>
                           </div>
                         ) : (
@@ -1097,10 +1069,12 @@ export default function CheckoutPage() {
                   style={{ width: '100%', padding: '13px', background: '#FFD814', border: '1px solid #FBA131', borderRadius: 6,
                     fontWeight: 800, fontSize: 16, cursor: 'pointer', opacity: loading ? 0.7 : 1, marginBottom: 10 }}>
                   {loading
-                    ? (paymentMethod === 'FONEPAY' ? 'Submitting your payment…' : 'Placing your order…')
+                    ? 'Placing your order…'
                     : (paymentMethod === 'FONEPAY'
-                        ? `Confirm order & submit payment · ${formatPriceShort(checkoutTotal)}`
-                        : `Place your order · ${formatPriceShort(checkoutTotal)}`)}
+                        ? `Place order & pay · ${formatPriceShort(checkoutTotal)}`
+                        : codBookingRequired
+                          ? `Place order & pay booking · ${formatPriceShort(codBookingAmount)}`
+                          : `Place your order · ${formatPriceShort(checkoutTotal)}`)}
                 </button>
                 <div style={{ fontSize: 12, color: '#555', lineHeight: 1.6, textAlign: 'center' }}>
                   By placing your order, you agree to our{' '}
@@ -1129,7 +1103,7 @@ export default function CheckoutPage() {
           canPlace={!!selectedAddressId}
           step={step}
           codBookingAmount={codBookingAmount}
-          bookingConfirmed={bookingConfirmed}
+          bookingConfirmed={false}
           paymentMethod={paymentMethod}
           freeShipping={effectiveFreeShipping}
           freebie={effectiveFreebie}

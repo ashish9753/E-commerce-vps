@@ -4,49 +4,47 @@ import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../context/OrderContext';
 import { useToast } from '../context/ToastContext';
 import { reviewsApi } from '../api/reviews';
-import { paymentsApi } from '../api/payments';
 import { ordersApi } from '../api/orders';
 import client, { getErrorMessage } from '../api/client';
 import { formatPriceShort, formatDate } from '../utils/formatters';
 import SupportIcon from '../components/icons/SupportIcon';
 import { generateInvoice } from '../utils/generateInvoice';
-import FonePayUploader from '../components/FonePayUploader';
+import FonepayCheckout from '../components/FonepayCheckout';
 
 // Unpaid online orders auto-cancel after this many minutes (matches backend
 // PENDING_ORDER_TIMEOUT_MIN). Kept here as a UI fallback if /config call fails.
 const DEFAULT_PAYMENT_TIMEOUT_MIN = 30;
 
 /**
- * FonePay payment banner for an unpaid ONLINE order. Drives three states based
- * on order.paymentReviewStatus:
- *   • NOT_REQUIRED  → no screenshot yet: show QR + uploader + auto-cancel timer
- *   • PENDING_REVIEW→ screenshot submitted: "under review", let them view it
- *   • REJECTED      → staff rejected it: show reason + let them re-upload
+ * Fonepay payment banner for an order that still owes money:
+ *   • purpose 'full'    → unpaid ONLINE order (auto-cancel countdown shown)
+ *   • purpose 'booking' → COD order whose non-refundable advance is unpaid
+ *
+ * "Pay now" expands an inline live QR (FonepayCheckout). The order settles
+ * automatically the moment Fonepay confirms the payment.
  */
-function PendingPaymentBanner({ order, timeoutMin, onPaid, onCancelled, onViewProof }) {
+function PendingPaymentBanner({ order, timeoutMin, purpose = 'full', onPaid, onCancelled }) {
   const toast = useToast();
-  const [file, setFile] = useState(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const isBooking = purpose === 'booking';
+  const amount = isBooking ? order.codBookingAmount : order.totalPrice;
 
-  const reviewStatus = order.paymentReviewStatus || 'NOT_REQUIRED';
-  const underReview   = reviewStatus === 'PENDING_REVIEW';
-  const rejected      = reviewStatus === 'REJECTED';
-
+  // Auto-cancel countdown applies to unpaid ONLINE orders only.
   const [remainingMs, setRemainingMs] = useState(() => {
     const expiresAt = new Date(order.createdAt).getTime() + timeoutMin * 60_000;
     return Math.max(0, expiresAt - Date.now());
   });
   useEffect(() => {
-    if (underReview || rejected) return; // timer only matters before a proof exists
+    if (isBooking) return;
     const id = setInterval(() => {
       const expiresAt = new Date(order.createdAt).getTime() + timeoutMin * 60_000;
       setRemainingMs(Math.max(0, expiresAt - Date.now()));
     }, 1000);
     return () => clearInterval(id);
-  }, [order.createdAt, timeoutMin, underReview, rejected]);
+  }, [order.createdAt, timeoutMin, isBooking]);
 
-  const expired = !underReview && !rejected && remainingMs <= 0;
+  const expired = !isBooking && remainingMs <= 0;
   const minutes = Math.floor(remainingMs / 60_000);
   const seconds = Math.floor((remainingMs % 60_000) / 1000);
   const countdown = expired ? 'Expired — refresh to see cancellation' : `${minutes}m ${String(seconds).padStart(2, '0')}s`;
@@ -65,87 +63,52 @@ function PendingPaymentBanner({ order, timeoutMin, onPaid, onCancelled, onViewPr
     }
   };
 
-  const handleSubmit = async () => {
-    if (!file) { toast('Please attach your FonePay payment screenshot.', 'error'); return; }
-    setSubmitting(true);
-    try {
-      const fd = new FormData();
-      fd.append('screenshot', file);
-      await paymentsApi.submitProof(order._id, fd);
-      toast('Screenshot submitted — our team will verify your payment shortly.');
-      onPaid?.();
-    } catch (err) {
-      toast(getErrorMessage(err), 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const accent = isBooking ? '#f59e0b' : '#e2117b';
+  const bg     = isBooking ? '#fffbeb' : '#fff1f7';
+  const border = isBooking ? '#fde68a' : '#fbcfe8';
 
-  // ── Submitted, awaiting staff verification ──
-  if (underReview) {
-    return (
-      <div style={{ borderTop: '1px solid #bfdbfe', background: '#eff6ff', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 220 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: '#1d4ed8' }}>🧾 Payment under review</div>
-          <div style={{ fontSize: 12, color: '#1e40af', marginTop: 2 }}>
-            We received your screenshot and our team is verifying it. Your order will be confirmed once approved.
-          </div>
-        </div>
-        {order.paymentProof?.url && (
-          <button onClick={() => onViewProof?.(order.paymentProof)}
-            style={{ padding: '8px 16px', borderRadius: 6, fontWeight: 700, fontSize: 13, border: '1px solid #93c5fd', background: 'white', color: '#1d4ed8', cursor: 'pointer' }}>
-            View my screenshot
-          </button>
-        )}
-        <button onClick={handleCancel} disabled={cancelling}
-          style={{ padding: '8px 14px', borderRadius: 6, fontWeight: 700, fontSize: 13, border: '1px solid #fecaca', background: 'white', color: '#dc2626', cursor: cancelling ? 'not-allowed' : 'pointer', opacity: cancelling ? 0.7 : 1 }}>
-          {cancelling ? 'Cancelling…' : 'Cancel order'}
-        </button>
-      </div>
-    );
-  }
-
-  // ── No proof yet (NOT_REQUIRED) or rejected → show QR + uploader ──
   return (
-    <div style={{ borderTop: `1px solid ${rejected ? '#fecaca' : '#fde68a'}`, background: rejected ? '#fef2f2' : '#fffbeb', padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ borderTop: `1px solid ${border}`, background: bg, padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div>
-        <div style={{ fontWeight: 700, fontSize: 13, color: rejected ? '#dc2626' : '#92400e' }}>
-          {rejected ? '⚠ Payment not verified — please re-upload' : '⚠ Payment pending — pay via FonePay to confirm your order'}
+        <div style={{ fontWeight: 700, fontSize: 13, color: isBooking ? '#92400e' : '#be185d' }}>
+          {isBooking
+            ? `⚡ Booking advance pending — pay ${formatPriceShort(amount)} via Fonepay to confirm your COD order`
+            : '⚠ Payment pending — pay via Fonepay to confirm your order'}
         </div>
-        <div style={{ fontSize: 12, color: rejected ? '#b91c1c' : '#78350f', marginTop: 2 }}>
-          {rejected
-            ? (order.paymentReviewNote ? `Reason: ${order.paymentReviewNote}` : 'Your previous screenshot could not be verified. Please pay again and upload a valid screenshot.')
-            : expired
+        {!isBooking && (
+          <div style={{ fontSize: 12, color: '#78350f', marginTop: 2 }}>
+            {expired
               ? 'This order will be auto-cancelled and stock released.'
-              : <>Scan the QR, pay, and upload your screenshot. Auto-cancels in <strong>{countdown}</strong> if no screenshot is uploaded.</>}
-        </div>
-      </div>
-
-      {!expired && (
-        <FonePayUploader
-          amount={order.totalPrice}
-          file={file}
-          onFile={setFile}
-          accent="#e2117b"
-          onError={(m) => toast(m, 'error')}
-        />
-      )}
-
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {!expired && (
-          <button onClick={handleSubmit} disabled={submitting || cancelling || !file}
-            style={{ padding: '9px 20px', borderRadius: 6, fontWeight: 700, fontSize: 13, border: '1px solid #FBA131',
-              background: file ? '#FFD814' : '#f0f0f0', color: file ? '#000' : '#9ca3af',
-              cursor: (submitting || !file) ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}>
-            {submitting ? 'Submitting…' : 'Submit payment screenshot'}
-          </button>
+              : <>Pay now to confirm. Auto-cancels in <strong>{countdown}</strong> if unpaid.</>}
+          </div>
         )}
-        <button onClick={handleCancel} disabled={submitting || cancelling}
-          style={{ padding: '9px 16px', borderRadius: 6, fontWeight: 700, fontSize: 13, border: '1px solid #fecaca',
-            background: 'white', color: '#dc2626', cursor: (submitting || cancelling) ? 'not-allowed' : 'pointer', opacity: cancelling ? 0.7 : 1 }}>
-          {cancelling ? 'Cancelling…' : 'Cancel order'}
-        </button>
       </div>
+
+      {paying ? (
+        <FonepayCheckout
+          orderId={order._id}
+          purpose={purpose}
+          amount={amount}
+          accent={accent}
+          onSuccess={() => { setPaying(false); toast('Payment received! Your order is confirmed.'); onPaid?.(); }}
+          onCancel={() => setPaying(false)}
+        />
+      ) : (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {!expired && (
+            <button onClick={() => setPaying(true)} disabled={cancelling}
+              style={{ padding: '9px 20px', borderRadius: 6, fontWeight: 700, fontSize: 13, border: 'none',
+                background: accent, color: 'white', cursor: cancelling ? 'not-allowed' : 'pointer' }}>
+              {isBooking ? `Pay booking · ${formatPriceShort(amount)}` : `Pay now · ${formatPriceShort(amount)}`}
+            </button>
+          )}
+          <button onClick={handleCancel} disabled={cancelling}
+            style={{ padding: '9px 16px', borderRadius: 6, fontWeight: 700, fontSize: 13, border: '1px solid #fecaca',
+              background: 'white', color: '#dc2626', cursor: cancelling ? 'not-allowed' : 'pointer', opacity: cancelling ? 0.7 : 1 }}>
+            {cancelling ? 'Cancelling…' : 'Cancel order'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -313,7 +276,6 @@ export default function OrdersPage() {
   const [search, setSearch]       = useState('');
   const [reviewTarget, setReview] = useState(null); // { item, orderId }
   const [proofModal, setProofModal] = useState(null); // proof array to display
-  const [payView, setPayView]       = useState(null); // single payment screenshot {url}
   const [paymentTimeoutMin, setPaymentTimeoutMin] = useState(DEFAULT_PAYMENT_TIMEOUT_MIN);
 
   const reloadOrders = () => getMyOrders({ limit: 50 }).then(r => {
@@ -363,14 +325,6 @@ export default function OrdersPage() {
         />
       )}
       {proofModal && <RefundProofModal proof={proofModal} onClose={() => setProofModal(null)} />}
-      {payView && (
-        <RefundProofModal
-          proof={[payView]}
-          title="🧾 Payment Screenshot"
-          caption="The FonePay payment screenshot you uploaded for this order"
-          onClose={() => setPayView(null)}
-        />
-      )}
       <div style={{ maxWidth:1000, margin:'0 auto', padding:'0 16px' }}>
 
         {/* Header */}
@@ -428,6 +382,11 @@ export default function OrdersPage() {
                 && order.paymentStatus === 'PENDING'
                 && !isCancelled
                 && status === 'PLACED';
+              const needsBooking = order.paymentMethod === 'COD'
+                && order.codBookingStatus === 'PENDING'
+                && order.codBookingAmount > 0
+                && !isCancelled
+                && status === 'PLACED';
 
               return (
                 <div key={order._id} style={{ background:'white', borderRadius:8, border:'1px solid #ddd', overflow:'hidden' }}>
@@ -465,10 +424,19 @@ export default function OrdersPage() {
                   {needsPayment && (
                     <PendingPaymentBanner
                       order={order}
+                      purpose="full"
                       timeoutMin={paymentTimeoutMin}
                       onPaid={reloadOrders}
                       onCancelled={reloadOrders}
-                      onViewProof={(p) => setPayView(p)}
+                    />
+                  )}
+                  {needsBooking && (
+                    <PendingPaymentBanner
+                      order={order}
+                      purpose="booking"
+                      timeoutMin={paymentTimeoutMin}
+                      onPaid={reloadOrders}
+                      onCancelled={reloadOrders}
                     />
                   )}
 
@@ -637,15 +605,6 @@ export default function OrdersPage() {
                           onClick={() => setReview({ item: order.orderItems[0], orderId: order._id })}
                           style={{ fontSize:12,fontWeight:600,padding:'6px 16px',borderRadius:20,border:'1px solid #FF5A1F',background:'linear-gradient(to bottom,#fff8f5,#ffe8d6)',color:'#FF5A1F',cursor:'pointer' }}>
                           ✍️ Write a Review
-                        </button>
-                      )}
-                      {order.paymentProof?.url && (
-                        <button onClick={() => setPayView(order.paymentProof)}
-                          style={{ fontSize:12,fontWeight:600,padding:'6px 14px',borderRadius:20,border:'1px solid #e2117b',background:'linear-gradient(to bottom,#fdf2f8,#fce7f3)',color:'#be185d',cursor:'pointer',display:'flex',alignItems:'center',gap:5 }}>
-                          🧾 Payment Screenshot
-                          {order.paymentReviewStatus === 'PENDING_REVIEW' && <span style={{ fontSize:10 }}>· under review</span>}
-                          {order.paymentReviewStatus === 'REJECTED' && <span style={{ fontSize:10, color:'#dc2626' }}>· rejected</span>}
-                          {order.paymentReviewStatus === 'VERIFIED' && <span style={{ fontSize:10, color:'#16a34a' }}>· verified</span>}
                         </button>
                       )}
                       {isCancelled && order.cancellationRefundProof?.length > 0 && (

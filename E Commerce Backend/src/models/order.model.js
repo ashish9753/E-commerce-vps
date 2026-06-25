@@ -16,6 +16,23 @@ const orderItemSchema = new mongoose.Schema({
   freebieValue: { type: Number, default: 0 },
 }, { _id: false });
 
+// One Fonepay Intent-QR transaction. Used twice on an order: once for the full
+// ONLINE payment (`fonepayPayment`) and once for the COD booking advance
+// (`fonepayBooking`). `prn`/`referenceLabel` is the unique key we use to query
+// Fonepay's status API and reconcile the live WebSocket push.
+const fonepayTxnSchema = new mongoose.Schema({
+  prn:          { type: String, default: "" }, // referenceLabel sent to Fonepay
+  terminalId:   { type: String, default: "" },
+  amount:       { type: Number, default: 0 },
+  qrString:     { type: String, default: "" }, // raw QR payload (for re-render)
+  websocketUrl: { type: String, default: "" }, // live status socket from Fonepay
+  status:       { type: String, enum: ["PENDING", "SUCCESS", "FAILED"], default: "PENDING" },
+  traceId:      { type: String, default: "" }, // Fonepay trace id on success
+  message:      { type: String, default: "" }, // gateway status message
+  generatedAt:  { type: Date, default: null },
+  paidAt:       { type: Date, default: null },
+}, { _id: false });
+
 const shippingAddressSchema = new mongoose.Schema({
   fullName: String,
   phone: String,
@@ -73,31 +90,15 @@ const orderSchema = new mongoose.Schema(
     deliveredAt: Date,
     paidAt: Date,
     codBookingAmount:  { type: Number, default: 0 },
-    codBookingUtr:     { type: String, default: "" },   // UPI transaction ref
     codBookingStatus:  { type: String, enum: ["NOT_REQUIRED", "PENDING", "PAID", "REJECTED"], default: "NOT_REQUIRED" },
-    // FonePay QR booking-advance screenshot uploaded by the customer. Verified
-    // by admin/employee — accept moves codBookingStatus → PAID, reject → REJECTED.
-    codBookingScreenshot: {
-      url:        String,
-      publicId:   String,
-      uploadedAt: Date,
-    },
-    // ─── FonePay manual payment (ONLINE orders) ───────────────────────────
-    // Customer pays by scanning the FonePay QR, then uploads a screenshot of
-    // the successful transaction. Staff verify it manually before the order is
-    // marked PAID. (Replaces the old Razorpay gateway flow.)
-    paymentProof: {
-      url:        String,
-      publicId:   String,
-      uploadedAt: Date,
-    },
-    paymentReviewStatus: {
-      type: String,
-      enum: ["NOT_REQUIRED", "PENDING_REVIEW", "VERIFIED", "REJECTED"],
-      default: "NOT_REQUIRED",
-    },
-    paymentReviewNote: { type: String, default: "" },   // rejection reason / staff note
-    paymentReviewedAt: { type: Date, default: null },
+    // ─── Fonepay Checkout Intent gateway ──────────────────────────────────
+    // Customer pays by scanning a single-use dynamic Fonepay QR. The gateway
+    // confirms the payment automatically (live WebSocket + status API) — no
+    // screenshots, no manual verification.
+    //   • fonepayPayment → full ONLINE order amount → order.paymentStatus PAID
+    //   • fonepayBooking → COD non-refundable advance → order.codBookingStatus PAID
+    fonepayPayment: { type: fonepayTxnSchema, default: undefined },
+    fonepayBooking: { type: fonepayTxnSchema, default: undefined },
     cancellationRefundMethod: { type: String, enum: ['bank_transfer', 'upi'] },
     cancellationBankDetails:  { type: mongoose.Schema.Types.Mixed, default: {} },
     cancellationRefundProof:  [{

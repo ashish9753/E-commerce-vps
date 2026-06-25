@@ -163,7 +163,7 @@ const dispatchToUpayaForFulfillment = async (order) => {
  */
 export const placeOrder = async (req, res, next) => {
   try {
-    const { shippingAddressId, paymentMethod, useCart = true, directItem, codBookingUtr } = req.body;
+    const { shippingAddressId, paymentMethod, useCart = true, directItem } = req.body;
 
     if (!shippingAddressId || !paymentMethod) {
       throw new ApiError(400, "shippingAddressId and paymentMethod are required");
@@ -386,9 +386,8 @@ export const placeOrder = async (req, res, next) => {
           codBookingAmount = cfg.bookingType === "percent"
             ? parseFloat(((totalPrice * cfg.bookingValue) / 100).toFixed(2))
             : cfg.bookingValue;
-          // Booking advance is paid via FonePay QR; the customer uploads a
-          // screenshot after the order is created and staff verify it. So the
-          // order always starts PENDING here regardless of any legacy UTR.
+          // Booking advance is paid via the Fonepay dynamic QR right after the
+          // order is created, so it always starts PENDING here.
           codBookingStatus = "PENDING";
         }
       }
@@ -405,7 +404,6 @@ export const placeOrder = async (req, res, next) => {
       totalPrice,
       couponId: couponId?.toString() || null,
       codBookingAmount,
-      codBookingUtr: codBookingUtr || "",
       codBookingStatus,
     };
 

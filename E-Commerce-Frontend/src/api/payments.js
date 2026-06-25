@@ -1,12 +1,21 @@
 import client from './client';
 
 export const paymentsApi = {
-  // Customer uploads a FonePay payment screenshot for their order.
-  // `formData` must contain a `screenshot` file field.
-  submitProof: (orderId, formData) => client.post(`/payments/proof/${orderId}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }),
-  // Admin/employee accept or reject the uploaded screenshot.
-  reviewPayment: (orderId, data) => client.patch(`/payments/${orderId}/review`, data),
+  // Generate a single-use dynamic Fonepay QR for an order.
+  // purpose: 'full' (whole online amount) | 'booking' (COD advance).
+  createQr: (orderId, purpose = 'full') =>
+    client.post(`/payments/fonepay/${orderId}/qr`, { purpose }, { skipErrorToast: true }),
+
+  // Live payment status — settles the order on success. Poll while the QR is up.
+  getStatus: (orderId, purpose = 'full') =>
+    client.get(`/payments/fonepay/${orderId}/status`, {
+      params: { purpose },
+      skipErrorToast: true, // polling — don't spam toasts on transient errors
+    }),
+
+  // Banks for the mobile intent flow (optional).
+  getBanks: (mobileNo) =>
+    client.get('/payments/fonepay/banks', { params: mobileNo ? { mobileNo } : {} }),
+
   getByOrder: (orderId) => client.get(`/payments/order/${orderId}`),
 };
