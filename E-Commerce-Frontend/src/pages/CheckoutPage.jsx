@@ -460,18 +460,33 @@ export default function CheckoutPage() {
         } catch { /* fall through to Upaya */ }
       }
 
+      // Global Delivery Settings default — the same fallback the backend uses
+      // when no DeliveryArea matches and Upaya can't give a rate. Keeps the
+      // delivery charge sourced from admin settings (never hardcoded).
+      const settingsFallbackCharge = (deliveryCfg?.freeThresholdEnabled && checkoutSubtotal >= deliveryCfg.freeThreshold)
+        ? 0
+        : (Number(deliveryCfg?.defaultCharge) || 0);
+
       if (areaCharge !== null) {
         setDeliveryCheck({ available: true, city: addr.city, deliveryCharge: areaCharge, source: 'area' });
       } else if (addr.upayaLocationId) {
-        const { data } = await upayaApi.getRate({
-          location_id: addr.upayaLocationId,
-          initial_weight: 1,
-          service_type_id: 3,
-          order_type: 'delivery_order',
-        });
-        const rate = data.data?.rate || {};
-        const charge = Number(rate.total ?? rate.amount ?? rate.rate ?? rate.deliveryCharge ?? 0);
-        setDeliveryCheck({ available: true, city: addr.city, deliveryCharge: charge, source: 'upaya' });
+        // The address is dispatchable (it has an Upaya location). Try the live
+        // rate, but if Upaya is unreachable/erroring, don't block checkout —
+        // fall back to the Delivery Settings default. Dispatch later uses the
+        // areaId, not this rate, so the order is unaffected.
+        try {
+          const { data } = await upayaApi.getRate({
+            location_id: addr.upayaLocationId,
+            initial_weight: 1,
+            service_type_id: 3,
+            order_type: 'delivery_order',
+          });
+          const rate = data.data?.rate || {};
+          const charge = Number(rate.total ?? rate.amount ?? rate.rate ?? rate.deliveryCharge ?? 0);
+          setDeliveryCheck({ available: true, city: addr.city, deliveryCharge: charge, source: 'upaya' });
+        } catch {
+          setDeliveryCheck({ available: true, city: addr.city, deliveryCharge: settingsFallbackCharge, source: 'default' });
+        }
       } else if (addr.city && addr.city.trim()) {
         setDeliveryCheck({ available: false, reason: 'no_upaya_location', message: 'Please edit this address and pick a city from the delivery list.' });
       } else {
