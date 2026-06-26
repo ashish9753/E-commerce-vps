@@ -30,6 +30,7 @@ import SupportPage from './pages/SupportPage';
 import BrandsPage from './pages/BrandsPage';
 import EventsPage from './pages/EventsPage';
 import SocialMediaPage from './pages/SocialMediaPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 const SITE = 'Trade Engine';
 
@@ -180,7 +181,7 @@ export default function App() {
         <Route path="/employee" element={<EmployeeRoute><EmployeeDashboard /></EmployeeRoute>} />
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Layout><NotFoundPage /></Layout>} />
       </Routes>
     </BrowserRouter>
   );
