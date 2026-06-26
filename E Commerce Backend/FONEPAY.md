@@ -28,13 +28,17 @@ Two payment "purposes" share this machinery:
 
 | Var | Required | Notes |
 |-----|----------|-------|
-| `FONEPAY_BASE_URL` | yes | UAT: `https://uat-new-merchant-api.fonepay.com` |
-| `FONEPAY_USERNAME` | yes | oAuth username from Fonepay |
+| `FONEPAY_BASE_URL` | yes | UAT (per v1.10): `https://dev-external-gateway-new.fonepay.com` |
+| `FONEPAY_PATH_PREFIX` | no | UAT gateway prefix: `/merchantThirdpart`. Leave empty for prod if not needed. |
+| `FONEPAY_USERNAME` | yes | oAuth username from Fonepay (UAT sample: `labasam`) |
 | `FONEPAY_PASSWORD` | yes | oAuth password from Fonepay |
 | `FONEPAY_TERMINAL_ID` | yes | merchant terminal id / PAN (max 16 chars) |
-| `FONEPAY_PRIVATE_KEY` | yes | client RSA private key (PEM); one line, `\n`-escaped |
-| `FONEPAY_SIGN_ALGO` | no | signing hash, default `RSA-SHA256` |
+| `FONEPAY_PRIVATE_KEY` | yes | client RSA 2048 private key (PKCS8 PEM); one line, `\n`-escaped |
+| `FONEPAY_SIGN_ALGO` | no | signing hash, default `RSA-SHA256` (confirmed by v1.10) |
 | `FONEPAY_WS_ENABLED` | no | `false` disables the live WebSocket watcher (polling still works) |
+
+Full request URL = `FONEPAY_BASE_URL` + `FONEPAY_PATH_PREFIX` + endpoint path
+(e.g. `https://dev-external-gateway-new.fonepay.com/merchantThirdpart/api/merchant/third-party/v2/generate-intent-qr`).
 
 Until all required vars are set, online payment cleanly reports
 "temporarily unavailable" instead of erroring.
