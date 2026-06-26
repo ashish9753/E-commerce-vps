@@ -32,6 +32,10 @@ const PATHS = {
 };
 
 const baseUrl    = () => (process.env.FONEPAY_BASE_URL || "").replace(/\/$/, "");
+// UAT routes the third-party APIs behind a gateway prefix (e.g. /merchantThirdpart).
+// Production may not — so it's configurable and defaults to none.
+const pathPrefix = () => (process.env.FONEPAY_PATH_PREFIX || "").replace(/\/$/, "");
+const url        = (path) => `${baseUrl()}${pathPrefix()}${path}`;
 const username   = () => process.env.FONEPAY_USERNAME || "";
 const password   = () => process.env.FONEPAY_PASSWORD || "";
 const terminalId = () => process.env.FONEPAY_TERMINAL_ID || "";
@@ -78,24 +82,14 @@ const normalizeError = (err, label) => {
 };
 
 // ── oAuth token cache ───────────────────────────────────────────────────────
-// Fonepay tokens are JWTs; we cache one process-wide and refresh on expiry.
+// We cache one token process-wide and refresh on expiry (per `expiresIn`).
 let tokenCache = { token: null, expiresAt: 0 };
-
-const decodeJwtExp = (bearer) => {
-  try {
-    const jwt = bearer.replace(/^Bearer\s+/i, "");
-    const payload = JSON.parse(Buffer.from(jwt.split(".")[1], "base64").toString("utf8"));
-    return payload?.exp ? payload.exp * 1000 : 0;
-  } catch {
-    return 0;
-  }
-};
 
 const login = async () => {
   const body = { username: username(), password: password() };
   const raw = JSON.stringify(body);
   try {
-    const { data } = await axios.post(`${baseUrl()}${PATHS.login}`, raw, {
+    const { data } = await axios.post(url(PATHS.login), raw, {
       timeout: REQUEST_TIMEOUT_MS,
       headers: {
         "Content-Type": "application/json",
@@ -106,12 +100,13 @@ const login = async () => {
     });
     const accessToken = data?.accessToken;
     if (!accessToken) throw new ApiError(502, "Fonepay login returned no access token");
-    // accessToken already includes the leading "Bearer ".
-    const exp = decodeJwtExp(accessToken);
+    // accessToken already includes the leading "Bearer ". The token is an
+    // encrypted JWE in v1.10, so we can't read its exp — use `expiresIn`
+    // (seconds) from the response, falling back to 10 minutes.
+    const ttlSec = Number(data?.expiresIn) || 600;
     tokenCache = {
       token: accessToken,
-      // Fall back to a conservative 10-minute TTL if the JWT has no exp.
-      expiresAt: (exp || Date.now() + 10 * 60_000) - TOKEN_SAFETY_WINDOW_MS,
+      expiresAt: Date.now() + ttlSec * 1000 - TOKEN_SAFETY_WINDOW_MS,
     };
     return accessToken;
   } catch (err) {
@@ -135,7 +130,7 @@ const signedPost = async (path, body, label) => {
   assertConfigured();
   const raw = JSON.stringify(body);
   const send = async (token) =>
-    axios.post(`${baseUrl()}${path}`, raw, {
+    axios.post(url(path), raw, {
       timeout: REQUEST_TIMEOUT_MS,
       headers: {
         "Content-Type": "application/json",
@@ -181,7 +176,7 @@ export const fonepayService = {
     assertConfigured();
     const raw = JSON.stringify({});
     const send = async (token) =>
-      axios.get(`${baseUrl()}${PATHS.banks}`, {
+      axios.get(url(PATHS.banks), {
         timeout: REQUEST_TIMEOUT_MS,
         headers: {
           paymentMode: "INTENT",
