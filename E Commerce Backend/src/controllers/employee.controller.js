@@ -246,7 +246,7 @@ export const getEmployeeById = async (req, res, next) => {
   }
 };
 
-// ── Admin: update employee details + account ────────────────────────
+// Admin: update employee details + account
 export const updateEmployee = async (req, res, next) => {
   try {
     const { name, email, phone, newPassword, designation, department, joiningDate, monthlySalary, businessAddress, shopDescription, permissions } = req.body;
@@ -288,7 +288,7 @@ export const updateEmployee = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// ── Admin: block / unblock employee ─────────────────────────────────
+// Admin: block / unblock employee
 export const blockEmployee = async (req, res, next) => {
   try {
     const employee = await Employee.findById(req.params.employeeId);
@@ -302,7 +302,7 @@ export const blockEmployee = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// ── Admin: remove employee (soft-delete) ─────────────────────────────
+// Admin: remove employee (soft-delete)
 // Archives the employee instead of hard-deleting so all referenced data
 // (products, orders, return requests, salary history) stays intact and
 // remains visible to admin reports. The linked User.role reverts to
@@ -324,7 +324,7 @@ export const deleteEmployee = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// ── Admin: get salary records for an employee ────────────────────────
+// Admin: get salary records for an employee
 export const getEmployeeSalary = async (req, res, next) => {
   try {
     const records = await SalaryRecord.find({ employee: req.params.employeeId }).sort({ year: -1, month: -1 });
@@ -333,7 +333,7 @@ export const getEmployeeSalary = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// ── Admin: add monthly salary record ────────────────────────────────
+// Admin: add monthly salary record
 export const addSalaryRecord = async (req, res, next) => {
   try {
     const { month, year, baseSalary, deductions, bonuses, status, notes } = req.body;
@@ -368,7 +368,7 @@ export const addSalaryRecord = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// ── Admin: update salary record ──────────────────────────────────────
+// Admin: update salary record
 export const updateSalaryRecord = async (req, res, next) => {
   try {
     const { baseSalary, deductions, bonuses, status, notes, paidAt } = req.body;
@@ -386,7 +386,7 @@ export const updateSalaryRecord = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// ── Admin: delete salary record ──────────────────────────────────────
+// Admin: delete salary record
 export const deleteSalaryRecord = async (req, res, next) => {
   try {
     const record = await SalaryRecord.findByIdAndDelete(req.params.recordId);
@@ -395,7 +395,7 @@ export const deleteSalaryRecord = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// ── Employee: view own salary records ───────────────────────────────
+// Employee: view own salary records
 export const getMySalary = async (req, res, next) => {
   try {
     const employee = await Employee.findOne({ user: req.user._id }).select("monthlySalary designation joiningDate");

@@ -178,7 +178,7 @@ export const toggleWishlist = async (req, res, next) => {
   }
 };
 
-/* ─── Saved refund details (bank / UPI) ─── */
+/* Saved refund details (bank / UPI) */
 export const getSavedRefundDetails = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select("savedRefundDetails");

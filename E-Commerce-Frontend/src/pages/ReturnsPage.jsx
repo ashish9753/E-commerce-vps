@@ -8,7 +8,7 @@ import { usersApi } from '../api/users';
 import { getErrorMessage } from '../api/client';
 import { formatPriceShort, formatDate } from '../utils/formatters';
 
-/* ── constants ── */
+/* constants */
 const REASONS = [
   { id: 'defective',        icon: '🔧', label: 'Defective / Not Working',  desc: 'The item stopped working or never worked' },
   { id: 'wrong_item',       icon: '📦', label: 'Wrong Item Received',       desc: 'I received a different item than ordered' },
@@ -58,7 +58,7 @@ const STATUS_META = {
   COMPLETED:        { label: 'Completed',        color: '#16a34a', bg: '#dcfce7' },
 };
 
-/* ── sub-components ── */
+/* sub-components */
 function StatusBadge({ status }) {
   const m = STATUS_META[status] || STATUS_META.REQUESTED;
   return (
@@ -289,7 +289,7 @@ function MyReturnsView({ onNewReturn }) {
   );
 }
 
-/* ══════════════════════ Main page ══════════════════════ */
+/* Main page */
 export default function ReturnsPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -397,7 +397,7 @@ export default function ReturnsPage() {
     }
   };
 
-  /* ── Success screen ── */
+  /* Success screen */
   if (submitted) return (
     <div style={{ background:'#f0f2f2', minHeight:'100vh', padding:'60px 16px' }}>
       <div style={{ maxWidth:560, margin:'0 auto', background:'white', border:'1px solid #ddd', borderRadius:8, padding:'48px 40px', textAlign:'center' }}>

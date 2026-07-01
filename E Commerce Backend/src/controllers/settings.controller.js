@@ -36,7 +36,7 @@ export const updateCodSettings = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-/* ─── Delivery charge settings ─── */
+/* Delivery charge settings */
 
 const DELIVERY_KEY = "deliverySettings";
 

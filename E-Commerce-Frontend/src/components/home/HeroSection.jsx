@@ -50,7 +50,7 @@ export default function HeroSection() {
   const goNext = () => setSlide(s => (s + 1) % SLIDES.length);
   const goPrev = () => setSlide(s => (s - 1 + SLIDES.length) % SLIDES.length);
 
-  // ── Touch handlers (mobile swipe) ────────────────────────────────────────
+  // Touch handlers (mobile swipe)
   const onTouchStart = (e) => { dragX.current = e.touches[0].clientX; };
   const onTouchEnd   = (e) => {
     if (dragX.current === null) return;
@@ -59,7 +59,7 @@ export default function HeroSection() {
     dragX.current = null;
   };
 
-  // ── Mouse drag handlers (desktop) ────────────────────────────────────────
+  // Mouse drag handlers (desktop)
   const onMouseDown = (e) => { dragX.current = e.clientX; isDragging.current = false; };
   const onMouseMove = (e) => {
     if (dragX.current === null) return;

@@ -14,7 +14,7 @@ import { cleanPhone, isValidPhone } from '../utils/validators';
 import { getErrorMessage } from '../api/client';
 import FonepayCheckout from '../components/FonepayCheckout';
 
-/* ── tiny helpers ── */
+/* tiny helpers */
 const Inp = ({ label, value, onChange, placeholder, half }) => (
   <div style={{ flex: half ? '1 1 45%' : '1 1 100%', minWidth: 0 }}>
     <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 5 }}>{label}</label>
@@ -25,7 +25,7 @@ const Inp = ({ label, value, onChange, placeholder, half }) => (
   </div>
 );
 
-/* ── Address form ── */
+/* Address form */
 function AddressForm({ onSave, onCancel, initial = {} }) {
   const [form, setForm] = useState({
     fullName: initial.fullName || '', phone: initial.phone || '',
@@ -145,7 +145,7 @@ function AddressForm({ onSave, onCancel, initial = {} }) {
   );
 }
 
-/* ── Order summary sidebar ── */
+/* Order summary sidebar */
 function OrderSummary({ items, subtotal, deliveryCharge, discountAmount, total, onPlace, loading, canPlace, step, codBookingAmount, bookingConfirmed, paymentMethod, freeShipping, freebie }) {
   // `total` is the order grand total — also used by the COD-booking breakdown
   // below to compute "Pay on delivery" = total − booking. Kept as a local alias
@@ -298,7 +298,7 @@ function OrderSummary({ items, subtotal, deliveryCharge, discountAmount, total, 
   );
 }
 
-/* ══════════════════ Main page ══════════════════ */
+/* Main page */
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation();
