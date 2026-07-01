@@ -81,7 +81,7 @@ const normalizeError = (err, label) => {
   return new ApiError(502, `Fonepay error: ${err.message || "unknown"}`);
 };
 
-// ── oAuth token cache ───────────────────────────────────────────────────────
+// oAuth token cache
 // We cache one token process-wide and refresh on expiry (per `expiresIn`).
 let tokenCache = { token: null, expiresAt: 0 };
 

@@ -13,7 +13,7 @@ const SECTIONS = [
   { id: 'events',     label: 'Events / Schemes',   icon: '🎉' },
 ];
 
-/* ── shared helpers ── */
+/* shared helpers */
 function Card({ children }) {
   return (
     <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, padding: '22px', marginBottom: 16 }}>
@@ -135,7 +135,7 @@ function ErrorBar({ msg }) {
   );
 }
 
-/* ════════════════════ BRANDS ════════════════════ */
+/* BRANDS */
 function BrandsSection({ onMutate }) {
   const [brands, setBrands] = useState([]);
   const [draft, setDraft, clearDraft] = useFormDraft('catalog-brand', { name: '', logo: '', priority: '' });
@@ -304,7 +304,7 @@ function BrandsSection({ onMutate }) {
   );
 }
 
-/* ════════════════════ CATEGORIES ════════════════════ */
+/* CATEGORIES */
 function CategoriesSection({ onMutate }) {
   const [cats, setCats] = useState([]);
   const [draft, setDraft, clearDraft] = useFormDraft('catalog-category', { name: '', desc: '', imageUrl: '', priority: '' });
@@ -459,7 +459,7 @@ function CategoriesSection({ onMutate }) {
   );
 }
 
-/* ════════════════════ SUB-CATEGORIES ════════════════════ */
+/* SUB-CATEGORIES */
 function SubCategoriesSection({ onMutate }) {
   const [cats, setCats] = useState([]);
   const [draft, setDraft, clearDraft] = useFormDraft('catalog-subcat', { name: '', parent: '', desc: '' });
@@ -570,7 +570,7 @@ function SubCategoriesSection({ onMutate }) {
   );
 }
 
-/* ════════════════════ ATTRIBUTES ════════════════════ */
+/* ATTRIBUTES */
 function AttributesSection({ onMutate }) {
   const [attrs, setAttrs] = useState([]);
   const [cats, setCats]   = useState([]);
@@ -745,7 +745,7 @@ function AttributesSection({ onMutate }) {
   );
 }
 
-/* ════════════════════ EVENTS ════════════════════ */
+/* EVENTS */
 function EventsSection({ onMutate }) {
   const [events, setEvents] = useState([]);
   const [draft, setDraft, clearDraft] = useFormDraft('catalog-event', { name: '', badge: '', desc: '', discount: '', startDate: '', endDate: '' });
@@ -938,7 +938,7 @@ function EventsSection({ onMutate }) {
   );
 }
 
-/* ════════════════════ MAIN EXPORT ════════════════════ */
+/* MAIN EXPORT */
 export default function AdminCatalogTab() {
   const [section, setSection] = useState('brands');
   const { refresh } = useCatalog();

@@ -16,7 +16,7 @@ import { formatPriceShort, stars } from '../utils/formatters';
 import ProductCard from '../components/product/ProductCard';
 import FreebieDetailsModal from '../components/FreebieDetailsModal';
 
-/* ── helpers ── */
+/* helpers */
 const Rs = (n) => `Rs. ${Math.round(Number(n || 0)).toLocaleString('en-IN')}`;
 
 export default function ProductDetailPage() {
@@ -309,7 +309,7 @@ export default function ProductDetailPage() {
     swipeStartX.current = null;
   };
 
-  // ── Share handlers (defined after product is guaranteed non-null) ──────────
+  // Share handlers (defined after product is guaranteed non-null)
   const handleShare = async () => {
     const url = window.location.href;
     if (navigator.share) {
@@ -327,7 +327,7 @@ export default function ProductDetailPage() {
     setShareMenuOpen(false);
   };
 
-  // ── Lightbox keyboard handler (inside render, after product guaranteed) ────
+  // Lightbox keyboard handler (inside render, after product guaranteed)
   const onLightboxKey = (e) => {
     if (e.key === 'Escape')     { setLightboxOpen(false); setLightboxZoom(1); }
     if (e.key === 'ArrowRight') setActiveThumb(t => Math.min(t + 1, thumbs.length - 1));

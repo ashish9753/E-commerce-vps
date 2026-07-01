@@ -7,7 +7,7 @@ import { ordersApi } from '../api/orders';
 import SupportIcon from '../components/icons/SupportIcon';
 import { COMPANY } from '../config/company';
 
-/* ── palette ── */
+/* palette */
 const C = {
   orange: '#FF5A1F',
   orangeLight: '#fff3ee',
@@ -66,9 +66,7 @@ function StatusBadge({ status, small }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   NEW TICKET MODAL
-───────────────────────────────────────────── */
+/* NEW TICKET MODAL */
 function NewTicketModal({ onClose, onCreated, prefillOrderId = '' }) {
   const [subject, setSubject]   = useState('');
   const [message, setMessage]   = useState('');
@@ -257,9 +255,7 @@ function NewTicketModal({ onClose, onCreated, prefillOrderId = '' }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   CHAT PANEL  (with SSE bug fixes + polling)
-───────────────────────────────────────────── */
+/* CHAT PANEL  (with SSE bug fixes + polling) */
 function ChatPanel({ ticket, onBack, onUpdated }) {
   const { user }                           = useAuth();
   const { lastSupportMsg, sseReconnectCount } = useNotifications();
@@ -269,18 +265,18 @@ function ChatPanel({ ticket, onBack, onUpdated }) {
   const [mode, setMode]    = useState('message'); // 'message' | 'call'
   const bottomRef          = useRef(null);
 
-  /* ── Always-fresh refs to avoid stale closures ── */
+  /* Always-fresh refs to avoid stale closures */
   const ticketRef    = useRef(ticket);
   const onUpdatedRef = useRef(onUpdated);
   useEffect(() => { ticketRef.current    = ticket;    }, [ticket]);
   useEffect(() => { onUpdatedRef.current = onUpdated; }, [onUpdated]);
 
-  /* ── Scroll to bottom on new messages ── */
+  /* Scroll to bottom on new messages */
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [ticket?.messages?.length]);
 
-  /* ── SSE: append incoming message (uses ref, never stale) ── */
+  /* SSE: append incoming message (uses ref, never stale) */
   useEffect(() => {
     if (!lastSupportMsg) return;
     if (lastSupportMsg.ticketId !== ticketRef.current?._id) return;
@@ -296,7 +292,7 @@ function ChatPanel({ ticket, onBack, onUpdated }) {
     });
   }, [lastSupportMsg]);
 
-  /* ── Re-fetch on SSE reconnect (catches messages missed during gap) ── */
+  /* Re-fetch on SSE reconnect (catches messages missed during gap) */
   useEffect(() => {
     if (sseReconnectCount === 0) return;
     supportApi.getTicket(ticketRef.current._id)
@@ -304,7 +300,7 @@ function ChatPanel({ ticket, onBack, onUpdated }) {
       .catch(() => {});
   }, [sseReconnectCount]);
 
-  /* ── Periodic poll: 25s fallback so user never waits for a page reload ── */
+  /* Periodic poll: 25s fallback so user never waits for a page reload */
   useEffect(() => {
     const id = setInterval(() => {
       supportApi.getTicket(ticketRef.current._id)
@@ -322,7 +318,7 @@ function ChatPanel({ ticket, onBack, onUpdated }) {
     return () => clearInterval(id);
   }, [ticket._id]); // only re-create when ticket changes, not on every render
 
-  /* ── Re-fetch when user switches back to this tab ── */
+  /* Re-fetch when user switches back to this tab */
   useEffect(() => {
     const fn = () => {
       if (document.visibilityState !== 'visible') return;
@@ -529,9 +525,7 @@ function ChatPanel({ ticket, onBack, onUpdated }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   TICKET SIDEBAR (left panel)
-───────────────────────────────────────────── */
+/* TICKET SIDEBAR (left panel) */
 function TicketSidebar({ tickets, loading, activeId, onSelect }) {
   if (loading) {
     return (
@@ -607,9 +601,7 @@ function TicketSidebar({ tickets, loading, activeId, onSelect }) {
   );
 }
 
-/* ─────────────────────────────────────────────
-   EMPTY STATE (desktop right panel — no ticket)
-───────────────────────────────────────────── */
+/* EMPTY STATE (desktop right panel — no ticket) */
 function EmptyPanel() {
   return (
     <div style={{ background: '#fff', borderRadius: 10, border: `1px solid ${C.border}`,
@@ -626,9 +618,7 @@ function EmptyPanel() {
   );
 }
 
-/* ─────────────────────────────────────────────
-   MAIN SUPPORT PAGE
-───────────────────────────────────────────── */
+/* MAIN SUPPORT PAGE */
 export default function SupportPage() {
   const navigate              = useNavigate();
   const [searchParams]        = useSearchParams();

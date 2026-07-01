@@ -56,7 +56,7 @@ export const processOrderJob = async (job) => {
   const decremented = [];
 
   try {
-    // --- Step 1: Stock check + decrement ---
+    // Check and decrement stock for every item
     for (const item of orderItems) {
       // For a colored line, atomically verify + decrement THAT color's stock
       // (via $elemMatch + arrayFilters) and keep the summed top-level stock in
@@ -89,7 +89,7 @@ export const processOrderJob = async (job) => {
       decremented.push({ product, quantity: item.quantity, color: item.color || "", oldStock: product.stock + item.quantity });
     }
 
-    // --- Step 2: Create Order ---
+    // Create the order
     const orderDoc = {
       user: userId,
       orderItems,
@@ -116,7 +116,7 @@ export const processOrderJob = async (job) => {
       order = await Order.create(orderDoc);
     }
 
-    // --- Step 3: Log inventory changes ---
+    // Record the inventory changes
     const inventoryLogs = decremented.map(({ product, quantity, oldStock }) => ({
       product: product._id,
       order: order._id,
@@ -129,8 +129,7 @@ export const processOrderJob = async (job) => {
     }));
     await InventoryLog.insertMany(inventoryLogs, so());
 
-    // --- Step 4: Atomically claim coupon usage ---
-    // This is the only place coupon usage is committed. The guarded update
+    // Claim the coupon usage. This is the only place coupon usage is committed. The guarded update
     // means concurrent orders from the same user (or against a globally
     // capped coupon) cannot both succeed — exactly one wins, the other
     // gets a clean "no longer valid" error and the order is rolled back.
@@ -156,7 +155,7 @@ export const processOrderJob = async (job) => {
       }
     }
 
-    // --- Step 5: Clear user cart ---
+    // Empty the user's cart
     await Cart.findOneAndUpdate(
       { user: userId },
       { items: [], coupon: null, totalItems: 0, totalPrice: 0, discountAmount: 0, finalPrice: 0 },
@@ -164,7 +163,7 @@ export const processOrderJob = async (job) => {
     );
 
 
-    // --- Step 6: In-app notification for customer ---
+    // In-app notification for the customer.
     // For unpaid ONLINE orders we surface the deadline + cancel option so the
     // user understands the order is provisional until payment is verified.
     const pendingOnline = paymentMethod === "ONLINE";
@@ -197,7 +196,7 @@ export const processOrderJob = async (job) => {
       session.endSession();
     }
 
-    // --- Post-commit: notify employees + admins + low-stock alerts (non-blocking) ---
+    // After commit: notify staff and send low-stock alerts (non-blocking)
     setImmediate(async () => {
       try {
         // Notify employees + admins only for COD orders (ONLINE orders notify after payment is verified)
@@ -283,7 +282,6 @@ export const processOrderJob = async (job) => {
   }
 };
 
-// ─── Upaya dispatch ────────────────────────────────────────────────────────
 // Push the order to Upaya for delivery. Idempotent: if the order has already
 // been synced we exit early. Failures are persisted on the order so admin/
 // employee can see them and retry. The customer flow is never blocked.

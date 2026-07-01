@@ -1074,7 +1074,7 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
   const [error,  setError]  = useState('');
   const set = (k,v) => setForm(f=>({...f,[k]:v}));
 
-  /* ── category attributes (defined per sub-category in Catalog → Attributes) ── */
+  /* category attributes (defined per sub-category in Catalog → Attributes) */
   const [allAttrs, setAllAttrs] = useState([]);
   const [attrVals, setAttrVals] = useState({});      // { [attributeName]: selectedOption }
   const attrReconciled = useRef(false);
@@ -1099,7 +1099,7 @@ export function ProductForm({ initial, onSave, onCancel, employees }) {
   const removeSpec = (i) => setSpecs(s => s.filter((_,j) => j !== i));
   const setSpec    = (i, field, val) => setSpecs(s => s.map((r,j) => j===i ? {...r,[field]:val} : r));
 
-  // ── Colors / Variants (each has its own image, price and stock) ──
+  // Colors / Variants (each has its own image, price and stock)
   // Pre-fill straight from initial.colors in edit mode (robust direct read).
   const initColors = () => {
     if (!isEditMode || !Array.isArray(initial?.colors)) return [];
@@ -2078,9 +2078,7 @@ function EmployeeReturnsTab() {
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MAIN EMPLOYEE DASHBOARD
 â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
-/* ─────────────────────────────────────────────────────────
-   DELIVERY AREAS TAB
-───────────────────────────────────────────────────────── */
+/* DELIVERY AREAS TAB */
 function UpayaServicePanel() {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -2352,9 +2350,7 @@ export function DeliveryAreasTab() {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   EMPLOYEE SETTINGS TAB  (identical to admin settings)
-══════════════════════════════════════════════════════ */
+/* EMPLOYEE SETTINGS TAB  (identical to admin settings) */
 function EmployeeSettingsTab() {
   const [cfg, setCfg] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -2581,9 +2577,7 @@ function EmployeeSettingsTab() {
   );
 }
 
-/* ════════════════════════════════════════════════════════════════
-   MY SALARY TAB
-════════════════════════════════════════════════════════════════ */
+/* MY SALARY TAB */
 const SAL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 function MySalaryTab() {
@@ -2706,9 +2700,7 @@ function MySalaryTab() {
   );
 }
 
-/* ════════════════════════════════════════════════════════════════
-   EMPLOYEE COUPONS TAB
-════════════════════════════════════════════════════════════════ */
+/* EMPLOYEE COUPONS TAB */
 const EMPTY_COUPON_EMP = {
   code: '', discountType: 'PERCENTAGE', discountValue: '',
   minimumAmount: '', maximumDiscount: '', expiryDate: '',
@@ -3100,9 +3092,7 @@ function EmployeeCouponsTab() {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   CANCELLATIONS TAB (employee — process refunds)
-══════════════════════════════════════════════════════ */
+/* CANCELLATIONS TAB (employee — process refunds) */
 function ProofViewModalEmp({ proofs, onClose }) {
   const [idx, setIdx] = useState(0);
   return (

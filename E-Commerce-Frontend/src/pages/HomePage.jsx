@@ -104,7 +104,7 @@ function SectionHeader({ title, link }) {
   );
 }
 
-/* ───────────────────────────── LIVE EVENTS ───────────────────────────── */
+/* LIVE EVENTS */
 // Compact "X left" string for the countdown chip. Resolution drops as the
 // remaining window shrinks so the chip stays punchy: days → hours → minutes.
 function formatTimeLeft(endDate) {
@@ -1285,7 +1285,7 @@ export default function HomePage() {
           padding-bottom: 22px;
         }
 
-        /* ── Brands marquee: auto right→left scroll the user can also drag ── */
+        /* Brands marquee: auto right→left scroll the user can also drag */
         .myn-brand-marquee {
           position: relative;
           padding-bottom: 22px;
@@ -1476,7 +1476,7 @@ export default function HomePage() {
           padding: 0 68px 20px;
         }
 
-        /* ── Shop-by-category carousel (paged 12 per view, swipe / arrows) ── */
+        /* Shop-by-category carousel (paged 12 per view, swipe / arrows) */
         .myn-cat-carousel { position: relative; }
         .myn-cat-viewport { overflow: hidden; }
         .myn-cat-track {
@@ -1956,7 +1956,7 @@ export default function HomePage() {
           }
         }
 
-        /* ─────────────── Live Events / Schemes ─────────────── */
+        /* Live Events / Schemes */
         .myn-events-wrap {
           max-width: 1560px;
           margin: 0 auto;

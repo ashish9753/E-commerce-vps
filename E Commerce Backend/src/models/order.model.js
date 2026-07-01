@@ -91,7 +91,7 @@ const orderSchema = new mongoose.Schema(
     paidAt: Date,
     codBookingAmount:  { type: Number, default: 0 },
     codBookingStatus:  { type: String, enum: ["NOT_REQUIRED", "PENDING", "PAID", "REJECTED"], default: "NOT_REQUIRED" },
-    // ─── Fonepay Checkout Intent gateway ──────────────────────────────────
+    // Fonepay Checkout Intent gateway
     // Customer pays by scanning a single-use dynamic Fonepay QR. The gateway
     // confirms the payment automatically (live WebSocket + status API) — no
     // screenshots, no manual verification.
@@ -110,7 +110,7 @@ const orderSchema = new mongoose.Schema(
     // Halfway-mark payment reminder for unpaid ONLINE orders. Tracked so the
     // sweeper sends exactly one reminder per order before auto-cancellation.
     paymentReminderSentAt: { type: Date, default: null },
-    // ─── Upaya integration ───────────────────────────────────────────────
+    // Upaya integration
     upayaOrderRef:   { type: String, default: null }, // reference returned by Upaya add-order
     upayaTrackingId: { type: String, default: null }, // tracking id (often same as order ref)
     upayaSyncStatus: {

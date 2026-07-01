@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { returnsApi } from '../api/returns';
 import { formatPriceShort, formatDate } from '../utils/formatters';
 
-/* ── status pipeline — employee-first flow ── */
+/* status pipeline — employee-first flow */
 const REFUND_PIPELINE = [
   { key: 'REQUESTED',        label: 'Return Requested',   icon: '📤', desc: 'Your request has been received' },
   { key: 'APPROVED',         label: 'Approved',           icon: '✅', desc: 'Your return has been approved' },
@@ -51,7 +51,7 @@ const REASONS = {
   changed_mind: 'Changed My Mind', missing_parts: 'Missing Parts/Accessories',
 };
 
-/* ── standalone input — must live OUTSIDE RefundMethodCard to avoid remount on every render ── */
+/* standalone input — must live OUTSIDE RefundMethodCard to avoid remount on every render */
 const BankInp = ({ label, value, onChange, placeholder, disabled, error, onPaste }) => (
   <div>
     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#888', marginBottom: 4, textTransform: 'uppercase' }}>{label}</label>
@@ -60,7 +60,7 @@ const BankInp = ({ label, value, onChange, placeholder, disabled, error, onPaste
   </div>
 );
 
-/* ── Refund Method Selector ── */
+/* Refund Method Selector */
 function RefundMethodCard({ ret, onUpdate }) {
   const defaultMode = ret.refundMethod === 'upi' ? 'upi' : 'bank_transfer';
 
@@ -202,7 +202,7 @@ function RefundMethodCard({ ret, onUpdate }) {
   );
 }
 
-/* ── Progress Tracker ── */
+/* Progress Tracker */
 function Tracker({ status, resolution }) {
   const pipeline =
     resolution === 'replacement' ? REPLACEMENT_PIPELINE :
@@ -273,7 +273,7 @@ function Tracker({ status, resolution }) {
   );
 }
 
-/* ── Timeline ── */
+/* Timeline */
 function Timeline({ events }) {
   if (!events?.length) return null;
   return (
@@ -302,8 +302,8 @@ function Timeline({ events }) {
   );
 }
 
-/* ══════════════════ Main Page ══════════════════ */
-/* ── Refund Proof Lightbox ── */
+/* Main Page */
+/* Refund Proof Lightbox */
 function ProofModal({ proof, onClose }) {
   const [idx, setIdx] = useState(0);
   if (!proof?.length) return null;

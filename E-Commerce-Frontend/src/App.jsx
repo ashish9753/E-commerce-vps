@@ -1,7 +1,6 @@
-// ── MAINTENANCE MODE: set to false to restore the full site ──────────────────
+// MAINTENANCE MODE: set to false to restore the full site
 import MaintenancePage from './pages/MaintenancePage';
 const MAINTENANCE_MODE = false;
-// ─────────────────────────────────────────────────────────────────────────────
 
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
