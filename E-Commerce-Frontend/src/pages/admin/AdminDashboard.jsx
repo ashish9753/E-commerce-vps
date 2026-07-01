@@ -47,7 +47,7 @@ const REASON_LABEL = {
 
 const ROLE_COLORS = { admin: C.purple, employee: C.yellow, user: C.blue };
 
-/* ── Responsive hook ── */
+/* Responsive hook */
 function useResponsive() {
   const [w, setW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1280));
   useEffect(() => {
@@ -58,7 +58,7 @@ function useResponsive() {
   return { w, isMobile: w < 768, isTablet: w >= 768 && w < 1100, isDesktop: w >= 1100 };
 }
 
-/* ── shared helpers ── */
+/* shared helpers */
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 const fmtRs = (n) => `Rs. ${Math.round(Number(n || 0)).toLocaleString('en-IN')}`;
 const fmtShort = (n) => {
@@ -69,7 +69,7 @@ const fmtShort = (n) => {
   return fmtRs(v);
 };
 
-/* ── SVG icon helpers (match HTML mockup) ── */
+/* SVG icon helpers (match HTML mockup) */
 const Icon = {
   users:  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" style={{width:20,height:20}}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
   shield: <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" style={{width:20,height:20}}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
@@ -181,9 +181,7 @@ function Btn({ children, onClick, disabled, variant = 'ghost', style }) {
   return <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], opacity: disabled ? .5 : 1 }}>{children}</button>;
 }
 
-/* ══════════════════════════════════════════════════════
-   OVERVIEW TAB
-══════════════════════════════════════════════════════ */
+/* OVERVIEW TAB */
 const NOTIF_ICONS = { ORDER: '🛒', PAYMENT: '💳', OFFER: '🎁', REFUND: '↩️', SYSTEM: '⚠️' };
 
 function timeAgo(date) {
@@ -511,9 +509,7 @@ function OverviewTab() {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   USERS TAB
-══════════════════════════════════════════════════════ */
+/* USERS TAB */
 function buildUserGrowthData(all, period) {
   const now = new Date();
   let buckets = [];
@@ -568,7 +564,7 @@ function buildUserGrowthData(all, period) {
   return buckets;
 }
 
-/* ── User Detail Modal (addresses + orders) ── */
+/* User Detail Modal (addresses + orders) */
 function UserDetailModal({ user, onClose }) {
   const [activeTab, setActiveTab] = useState('addresses');
   const [userData, setUserData]   = useState(user);
@@ -945,9 +941,7 @@ function UsersTab({ globalSearch = '' }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   SELLERS TAB
-══════════════════════════════════════════════════════ */
+/* SELLERS TAB */
 const EMPTY_EMP_FORM = { name:'', email:'', phone:'', password:'', designation:'', department:'', joiningDate:'', monthlySalary:'', businessAddress:'', permissions: ALL_PERMISSIONS };
 const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const EMPTY_SAL = { month: new Date().getMonth()+1, year: new Date().getFullYear(), baseSalary:'', deductions:[], bonuses:[], status:'PENDING', notes:'' };
@@ -1538,9 +1532,7 @@ function EmployeesTab({ globalSearch = '' }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   ORDERS TAB
-══════════════════════════════════════════════════════ */
+/* ORDERS TAB */
 const ORDER_STATUSES = ['PLACED','CONFIRMED','PACKED','SHIPPED','OUT_FOR_DELIVERY','DELIVERED','CANCELLED','RETURNED'];
 
 function OrdersTab({ globalSearch = '' }) {
@@ -2052,7 +2044,7 @@ function OrdersTab({ globalSearch = '' }) {
   );
 }
 
-/* ── Shared micro-components ─────────────────────── */
+/* Shared micro-components */
 function PagBar({ page, pagination, loading, setPage, label = '' }) {
   if (pagination.totalPages <= 1) return null;
   const style = { display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 4px', borderBottom:`1px solid ${C.line}`, marginBottom:8 };
@@ -2087,9 +2079,7 @@ function Empty({ text }) {
   return <div style={{ padding: '40px 0', textAlign: 'center', color: C.mute, fontSize: 14 }}>{text}</div>;
 }
 
-/* ══════════════════════════════════════════════════════
-   ADMIN RETURNS TAB
-══════════════════════════════════════════════════════ */
+/* ADMIN RETURNS TAB */
 const ADMIN_RETURN_STATUSES = [
   'REQUESTED','EMPLOYEE_APPROVED','EMPLOYEE_REJECTED',
   'APPROVED','REJECTED','PICKUP_SCHEDULED',
@@ -2562,12 +2552,8 @@ function AdminReturnsTab({ globalSearch = '' }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   MAIN COMPONENT
-══════════════════════════════════════════════════════ */
-/* ══════════════════════════════════════════════════════
-   COUPONS TAB
-══════════════════════════════════════════════════════ */
+/* MAIN COMPONENT */
+/* COUPONS TAB */
 const EMPTY_COUPON = { code:'', discountType:'PERCENTAGE', discountValue:'', minimumAmount:'', maximumDiscount:'', expiryDate:'', usageLimit:'', isActive:true, visibility:'hidden', applicableBrands:[], applicableCategories:[], applicableSubcategories:[], freebieProduct:'', freebieQuantity:1 };
 
 function AdminCouponsTab({ globalSearch = '' }) {
@@ -2951,7 +2937,7 @@ function AdminCouponsTab({ globalSearch = '' }) {
   );
 }
 
-/* ══════════════════ Admin Notifications Tab ══════════════════ */
+/* Admin Notifications Tab */
 const EMPTY_NOTIF = { sendMode:'broadcast', targetRole:'user', userEmail:'', spendFilter:'above', minSpend:'', maxSpend:'', title:'', message:'', type:'SYSTEM', link:'', couponCode:'' };
 
 function AdminNotificationsTab() {
@@ -3245,9 +3231,7 @@ function AdminNotificationsTab() {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   ADMIN SUPPORT TAB
-══════════════════════════════════════════════════════ */
+/* ADMIN SUPPORT TAB */
 const TICKET_STATUS_META = {
   OPEN:        { label: 'Open',        color: '#3b82f6', bg: '#3b82f625' },
   IN_PROGRESS: { label: 'In Progress', color: '#f59e0b', bg: '#f59e0b25' },
@@ -3280,14 +3264,14 @@ export function AdminSupportTab({ globalSearch = '' }) {
   const [expandedId, setExpandedId] = useState(null);
   const bottomRef = useRef(null);
 
-  /* ── Always-fresh ref to avoid stale SSE closures ── */
+  /* Always-fresh ref to avoid stale SSE closures */
   const activeRef = useRef(null);
   useEffect(() => { activeRef.current = activeTicket; }, [activeTicket]);
 
   useEffect(() => { setSearch(globalSearch); }, [globalSearch]);
   useEffect(() => { fetchAll(); }, [filterStatus]);
 
-  /* ── SSE: append incoming message without stale closure ── */
+  /* SSE: append incoming message without stale closure */
   useEffect(() => {
     if (!lastSupportMsg || !activeRef.current) return;
     if (lastSupportMsg.ticketId !== activeRef.current._id) return;
@@ -3302,7 +3286,7 @@ export function AdminSupportTab({ globalSearch = '' }) {
     }));
   }, [lastSupportMsg]);
 
-  /* ── Re-fetch on SSE reconnect to catch messages missed during gap ── */
+  /* Re-fetch on SSE reconnect to catch messages missed during gap */
   useEffect(() => {
     if (sseReconnectCount === 0 || !activeRef.current) return;
     supportApi.getTicket(activeRef.current._id)
@@ -3310,7 +3294,7 @@ export function AdminSupportTab({ globalSearch = '' }) {
       .catch(() => {});
   }, [sseReconnectCount]);
 
-  /* ── 25s polling fallback when a ticket is open ── */
+  /* 25s polling fallback when a ticket is open */
   useEffect(() => {
     if (!activeTicket) return;
     const id = setInterval(() => {
@@ -3553,9 +3537,8 @@ export function AdminSupportTab({ globalSearch = '' }) {
   );
 }
 
-/* ════════════════════════════════════════════════════════════════ */
 
-/* ════════════════════ SETTINGS TAB ════════════════════ */
+/* SETTINGS TAB */
 function AdminSettingsTab() {
   const [cfg, setCfg] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -3803,7 +3786,6 @@ function AdminSettingsTab() {
   );
 }
 
-/* ════════════════════════════════════════════════════════════════ */
 
 const NAV_SECTIONS = [
   {
@@ -4286,9 +4268,7 @@ export default function AdminDashboard() {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   CANCELLATIONS & REFUNDS TAB
-══════════════════════════════════════════════════════ */
+/* CANCELLATIONS & REFUNDS TAB */
 function ProofViewModalAdmin({ proofs, onClose }) {
   const [idx, setIdx] = useState(0);
   return (
@@ -4550,9 +4530,7 @@ function CancellationsTab({ globalSearch = '' }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════
-   INVENTORY TAB
-══════════════════════════════════════════════════════ */
+/* INVENTORY TAB */
 function InventoryTab({ globalSearch = '' }) {
   const [data, setData]           = useState(null);
   const [loading, setLoading]     = useState(true);

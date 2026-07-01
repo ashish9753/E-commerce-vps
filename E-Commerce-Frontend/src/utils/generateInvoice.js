@@ -51,7 +51,7 @@ export async function generateInvoice(order, user) {
   const isCancelled = order.orderStatus === "CANCELLED";
   const isRefunded  = order.paymentStatus === "REFUNDED" || order.refundStatus === "COMPLETED";
 
-  // ── Header (clean, white background) ─────────────────────────────────────
+  // Header (clean, white background)
   // Company legal name — bold black, left aligned.
   doc.setTextColor(20, 20, 20);
   doc.setFont("helvetica", "bold");
@@ -96,7 +96,7 @@ export async function generateInvoice(order, user) {
 
   y = 37;
 
-  // ── CANCELLED banner ──────────────────────────────────────────────────
+  // CANCELLED banner
   if (isCancelled) {
     doc.setFillColor(254, 226, 226);
     doc.setDrawColor(220, 38, 38);
@@ -121,7 +121,7 @@ export async function generateInvoice(order, user) {
     y += 25;
   }
 
-  // ── REFUNDED banner ───────────────────────────────────────────────────
+  // REFUNDED banner
   if (isRefunded && !isCancelled) {
     doc.setFillColor(240, 253, 244);
     doc.setDrawColor(22, 163, 74);
@@ -141,7 +141,7 @@ export async function generateInvoice(order, user) {
     y += 19;
   }
 
-  // ── Two-column: Sold By | Invoice Meta ───────────────────────────────
+  // Two-column: Sold By | Invoice Meta
   const col2 = 108;
   const metaW = W - col2 - margin;
 
@@ -188,7 +188,7 @@ export async function generateInvoice(order, user) {
   doc.setTextColor(0, 0, 0);
   y += 48;
 
-  // ── Bill To ───────────────────────────────────────────────────────────
+  // Bill To
   doc.setFillColor(241, 245, 249);
   doc.setDrawColor(200, 200, 200);
   doc.roundedRect(margin, y, W - margin * 2, 28, 3, 3, "FD");
@@ -211,7 +211,7 @@ export async function generateInvoice(order, user) {
 
   y += 33;
 
-  // ── Items table ───────────────────────────────────────────────────────
+  // Items table
   const items = order.orderItems || [];
 
   const tableBody = items.map((item, i) => {
@@ -270,7 +270,7 @@ export async function generateInvoice(order, user) {
 
   y = doc.lastAutoTable.finalY + 6;
 
-  // ── Summary (right-aligned box) ───────────────────────────────────────
+  // Summary (right-aligned box)
   const bx = 118;
   const bw = W - bx - margin;
 
@@ -338,7 +338,7 @@ export async function generateInvoice(order, user) {
     doc.setTextColor(0, 0, 0);
   }
 
-  // ── Cancellation / Refund detail block ────────────────────────────────
+  // Cancellation / Refund detail block
   if (isCancelled || isRefunded) {
     y += 7;
     const rows = [];
@@ -379,7 +379,7 @@ export async function generateInvoice(order, user) {
     y = doc.lastAutoTable.finalY + 6;
   }
 
-  // ── Declaration + Signature ───────────────────────────────────────────
+  // Declaration + Signature
   y += (isCancelled || isRefunded) ? 2 : 8;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
@@ -398,13 +398,13 @@ export async function generateInvoice(order, user) {
   doc.setTextColor(100, 100, 100);
   doc.text("Authorised Signatory", W - margin - 2, y + 14, { align: "right" });
 
-  // ── Footer ────────────────────────────────────────────────────────────
+  // Footer
   doc.setDrawColor(200, 200, 200);
   doc.line(margin, 287, W - margin, 287);
   doc.setFontSize(7);
   doc.text("This is a Computer Generated Invoice", W / 2, 291, { align: "center" });
 
-  // ── Save ──────────────────────────────────────────────────────────────
+  // Save
   const suffix = isCancelled ? "Cancelled" : isRefunded ? "Refunded" : "";
   const fname  = `Invoice-${shortNum(order.orderNumber)}${suffix ? "-" + suffix : ""}.pdf`;
   doc.save(fname);

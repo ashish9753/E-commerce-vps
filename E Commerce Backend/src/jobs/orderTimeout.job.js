@@ -17,7 +17,7 @@ const sweepOnce = async () => {
   const reminderCutoff = new Date(now - (TIMEOUT_MIN / 2) * 60_000);
 
   try {
-    // --- Reminder pass: halfway through the timeout, nudge once ---
+    // Halfway through the timeout, nudge the customer once.
     const reminderTargets = await Order.find({
       paymentMethod: "ONLINE",
       paymentStatus: "PENDING",
@@ -45,7 +45,7 @@ const sweepOnce = async () => {
       }
     }
 
-    // --- Cancel pass: orders past the full window ---
+    // Cancel orders past the full window.
     // Anchor on createdAt (when the order was placed). Status must still be PLACED —
     // if the employee already confirmed it, we leave it alone so they can chase the customer.
     const stale = await Order.find({

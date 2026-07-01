@@ -68,7 +68,7 @@ const saveUserRefundDetails = async (userId, refundMethod, bankDetails) => {
   });
 };
 
-/* ─── Customer: submit return ─── */
+/* Customer: submit return */
 export const createReturnRequest = async (req, res, next) => {
   try {
     const { orderId, productId, reason, description, resolution, refundMethod: bodyRefundMethod, bankDetails: bodyBankDetails } = req.body;
@@ -206,7 +206,7 @@ export const createReturnRequest = async (req, res, next) => {
   }
 };
 
-/* ─── Customer: single return by ID ─── */
+/* Customer: single return by ID */
 export const getSavedRefundDetails = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select("savedRefundDetails");
@@ -228,7 +228,7 @@ export const getReturnById = async (req, res, next) => {
   }
 };
 
-/* ─── Customer: set refund payment method ─── */
+/* Customer: set refund payment method */
 export const updateRefundMethod = async (req, res, next) => {
   try {
     const { refundMethod, bankDetails } = req.body;
@@ -255,7 +255,7 @@ export const updateRefundMethod = async (req, res, next) => {
   }
 };
 
-/* ─── Customer: my returns ─── */
+/* Customer: my returns */
 export const getMyReturnRequests = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationData(req.query);
@@ -272,7 +272,7 @@ export const getMyReturnRequests = async (req, res, next) => {
   }
 };
 
-/* ─── Employee / Admin: get all return requests ─── */
+/* Employee / Admin: get all return requests */
 export const getEmployeeReturnRequests = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationData(req.query);
@@ -293,7 +293,7 @@ export const getEmployeeReturnRequests = async (req, res, next) => {
   }
 };
 
-/* ─── Employee: approve or reject ─── */
+/* Employee: approve or reject */
 export const employeeActionOnReturn = async (req, res, next) => {
   try {
     const { action, note } = req.body; // action: "approve" | "reject"
@@ -346,7 +346,7 @@ export const employeeActionOnReturn = async (req, res, next) => {
   }
 };
 
-/* ─── Employee: advance return through refund pipeline ─── */
+/* Employee: advance return through refund pipeline */
 export const employeeAdvanceReturn = async (req, res, next) => {
   try {
     const { note } = req.body;
@@ -431,7 +431,7 @@ export const employeeAdvanceReturn = async (req, res, next) => {
   }
 };
 
-/* ─── Admin: all returns ─── */
+/* Admin: all returns */
 export const getAllReturnRequests = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationData(req.query);
@@ -452,7 +452,7 @@ export const getAllReturnRequests = async (req, res, next) => {
   }
 };
 
-/* ─── Admin: process / take action ─── */
+/* Admin: process / take action */
 export const processReturnRequest = async (req, res, next) => {
   try {
     const { status, adminNote, refundAmount } = req.body;
@@ -485,7 +485,7 @@ export const processReturnRequest = async (req, res, next) => {
     }
     pushTimeline(returnReq, status, adminNote || `Admin updated status to ${status}`, "admin");
 
-    // ── Restore stock on APPROVED or ITEM_RECEIVED ──
+    // Restore stock on APPROVED or ITEM_RECEIVED
     if (status === "APPROVED" || status === "ITEM_RECEIVED") {
       await Order.findByIdAndUpdate(returnReq.order._id, {
         refundStatus: "PROCESSING",
@@ -515,7 +515,7 @@ export const processReturnRequest = async (req, res, next) => {
       );
     }
 
-    // ── Upload refund proof screenshots (optional) ──
+    // Upload refund proof screenshots (optional)
     const proofFiles = req.files || [];
     if (proofFiles.length > 0) {
       for (const file of proofFiles) {
@@ -535,7 +535,7 @@ export const processReturnRequest = async (req, res, next) => {
 
     await returnReq.save();
 
-    // ── Customer notification messages ──
+    // Customer notification messages
     const finalStatus = returnReq.status;
     const adminStatusMessages = {
       APPROVED:         { title: "Return Approved ✅",    message: "Your return request has been approved. The employee will arrange pickup." },
@@ -557,7 +557,7 @@ export const processReturnRequest = async (req, res, next) => {
       link:    `/return-status/${returnReq._id}`,
     });
 
-    // ── Notify employee on approval/rejection ──
+    // Notify employee on approval/rejection
     if (returnReq.employee) {
       const employeeMsg = {
         APPROVED: "Admin has approved a return request for your product. Please arrange pickup.",

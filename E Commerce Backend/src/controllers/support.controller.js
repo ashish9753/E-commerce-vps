@@ -7,7 +7,7 @@ import { getPaginationData, buildPaginatedResponse } from "../utils/pagination.u
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
 
-/* ── User: create ticket ── */
+/* User: create ticket */
 export const createTicket = async (req, res, next) => {
   try {
     const { orderId, subject, message } = req.body;
@@ -50,7 +50,7 @@ export const createTicket = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-/* ── User: my tickets ── */
+/* User: my tickets */
 export const getMyTickets = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationData(req.query);
@@ -69,7 +69,7 @@ export const getMyTickets = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-/* ── Shared: get single ticket with messages ── */
+/* Shared: get single ticket with messages */
 export const getTicketById = async (req, res, next) => {
   try {
     const ticket = await SupportTicket.findById(req.params.ticketId)
@@ -87,7 +87,7 @@ export const getTicketById = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-/* ── Shared: reply to ticket ── */
+/* Shared: reply to ticket */
 export const replyToTicket = async (req, res, next) => {
   try {
     const { message } = req.body;
@@ -159,7 +159,7 @@ export const replyToTicket = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-/* ── Admin: all tickets ── */
+/* Admin: all tickets */
 export const getAllTickets = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationData(req.query);
@@ -179,7 +179,7 @@ export const getAllTickets = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-/* ── Admin: update ticket status ── */
+/* Admin: update ticket status */
 export const updateTicketStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
