@@ -4292,6 +4292,15 @@ function ProofViewModalAdmin({ proofs, onClose }) {
   );
 }
 
+// A cancelled order needs a manual refund only when the customer actually paid:
+// an online payment that completed (PAID, or already REFUNDED once processed).
+// Online orders cancelled before payment (PENDING/FAILED) and COD orders received
+// no money, so there is nothing to refund — matches the backend guard in
+// processCancellationRefund (ONLINE + PAID only).
+const orderHadPayment = (o) =>
+  o?.paymentMethod === 'ONLINE' &&
+  (o?.paymentStatus === 'PAID' || o?.paymentStatus === 'REFUNDED');
+
 function CancellationsTab({ globalSearch = '' }) {
   const { isMobile } = useResponsive();
   const [all, setAll]           = useState([]);
@@ -4329,16 +4338,15 @@ function CancellationsTab({ globalSearch = '' }) {
       o.items?.some(i => i.product?.title?.toLowerCase().includes(q));
     const mR = !refundF || (
       refundF === 'COMPLETED' ? o.refundStatus === 'COMPLETED' :
-      refundF === 'PENDING'   ? (o.paymentMethod === 'ONLINE' && o.refundStatus !== 'COMPLETED') :
-      refundF === 'NA'        ? o.paymentMethod !== 'ONLINE' : true
+      refundF === 'PENDING'   ? (orderHadPayment(o) && o.refundStatus !== 'COMPLETED') :
+      refundF === 'NA'        ? !orderHadPayment(o) : true
     );
     const mP = !payF || o.paymentMethod === payF;
     return mQ && mR && mP;
   });
 
-  const onlineOrders    = all.filter(o => o.paymentMethod === 'ONLINE');
   const completedCount  = all.filter(o => o.refundStatus === 'COMPLETED').length;
-  const pendingCount    = onlineOrders.filter(o => o.refundStatus !== 'COMPLETED').length;
+  const pendingCount    = all.filter(o => orderHadPayment(o) && o.refundStatus !== 'COMPLETED').length;
   const totalRefunded   = all.reduce((s, o) => s + (o.refundAmount || 0), 0);
 
   const handleProcessRefund = async (orderId) => {
@@ -4368,7 +4376,7 @@ function CancellationsTab({ globalSearch = '' }) {
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: 12 }}>
         <KpiCard label="Total Cancelled"  value={fmt(all.length)}         sub="All time"               colorKey="red"    iconEl={Icon.orders} />
-        <KpiCard label="Refund Pending"   value={fmt(pendingCount)}       sub="Online — action needed" colorKey="yellow" iconEl={Icon.refund} />
+        <KpiCard label="Refund Pending"   value={fmt(pendingCount)}       sub="Paid — action needed"   colorKey="yellow" iconEl={Icon.refund} />
         <KpiCard label="Refunds Done"     value={fmt(completedCount)}     sub="Manually processed"     colorKey="green"  iconEl={Icon.refund} />
         <KpiCard label="Total Refunded"   value={fmtShort(totalRefunded)} sub="Amount returned"        colorKey="blue"   iconEl={Icon.dollar} rawValue={totalRefunded} />
       </div>
@@ -4377,7 +4385,7 @@ function CancellationsTab({ globalSearch = '' }) {
       {pendingCount > 0 && (
         <div style={{ padding: '12px 16px', borderRadius: 10, background: C.yellow + '14', border: `1px solid ${C.yellow}33`, fontSize: 13, color: C.yellow, display: 'flex', gap: 10, alignItems: 'center' }}>
           <SvgAt el={Icon.refund} size={16} />
-          <span><strong>{pendingCount} online order{pendingCount > 1 ? 's' : ''}</strong> awaiting manual refund. Expand each order card and use "Process Refund" to mark as completed.</span>
+          <span><strong>{pendingCount} paid order{pendingCount > 1 ? 's' : ''}</strong> awaiting manual refund. Expand each order card and use "Process Refund" to mark as completed.</span>
         </div>
       )}
 
@@ -4394,7 +4402,7 @@ function CancellationsTab({ globalSearch = '' }) {
             <option value="">All Refund Status</option>
             <option value="PENDING">Refund Pending</option>
             <option value="COMPLETED">Refunded</option>
-            <option value="NA">N/A (COD)</option>
+            <option value="NA">N/A (no payment)</option>
           </Select>
           {(search || refundF || payF) && <Btn onClick={() => { setSearch(''); setRefundF(''); setPayF(''); }}>Clear</Btn>}
           <span style={{ fontSize: 13, color: C.mute, marginLeft: 'auto' }}>
@@ -4408,9 +4416,9 @@ function CancellationsTab({ globalSearch = '' }) {
         {filtered.length === 0 ? <Empty text="No cancelled orders match your filters" /> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {filtered.map(o => {
-              const isPaid      = o.paymentMethod === 'ONLINE';
+              const hadPayment  = orderHadPayment(o);
               const refundDone  = o.refundStatus === 'COMPLETED';
-              const needsRefund = isPaid && !refundDone;
+              const needsRefund = hadPayment && !refundDone;
               const isOpen      = expandId === o._id;
               const bd          = o.cancellationBankDetails || {};
 
@@ -4436,7 +4444,7 @@ function CancellationsTab({ globalSearch = '' }) {
                       {(o.items?.[0]?.product?.title || '').slice(0, 30)}{(o.items?.[0]?.product?.title || '').length > 30 ? '…' : ''}
                     </span>
                     <Badge text={o.paymentMethod} color={o.paymentMethod === 'ONLINE' ? C.blue : C.yellow} />
-                    {isPaid && <Badge text={refundDone ? 'REFUNDED' : 'PENDING'} color={refundDone ? C.green : C.yellow} />}
+                    {hadPayment && <Badge text={refundDone ? 'REFUNDED' : 'PENDING'} color={refundDone ? C.green : C.yellow} />}
                     <span style={{ fontWeight: 700, fontSize: 13, color: C.accent, flexShrink: 0 }}>{fmtRs(o.totalPrice)}</span>
                     <span style={{ fontSize: 11, color: C.mute, flexShrink: 0 }}>
                       {new Date(o.updatedAt || o.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
@@ -4454,7 +4462,7 @@ function CancellationsTab({ globalSearch = '' }) {
                       )}
 
                       {/* Refund details customer provided */}
-                      {isPaid && o.cancellationRefundMethod && (
+                      {hadPayment && o.cancellationRefundMethod && (
                         <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13 }}>
                           <div style={{ fontWeight: 700, marginBottom: 6, color: C.text }}>
                             {o.cancellationRefundMethod === 'upi' ? '📱 UPI Refund' : '🏦 Bank Transfer Refund'}
@@ -4513,8 +4521,10 @@ function CancellationsTab({ globalSearch = '' }) {
                       {refundDone && (
                         <span style={{ fontSize: 13, color: C.green, fontWeight: 700 }}>✓ Refund completed</span>
                       )}
-                      {!isPaid && (
-                        <span style={{ fontSize: 12, color: C.mute }}>COD order — no refund required</span>
+                      {!hadPayment && !refundDone && (
+                        <span style={{ fontSize: 12, color: C.mute }}>
+                          {o.paymentMethod === 'COD' ? 'COD order — no refund required' : 'Cancelled before payment — no refund required'}
+                        </span>
                       )}
                     </div>
                   )}
