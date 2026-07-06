@@ -17,6 +17,7 @@
 //   FONEPAY_SIGN_ALGO      — signing hash, default "RSA-SHA256"
 //   FONEPAY_WS_ENABLED     — "false" to disable the live WebSocket watcher
 import crypto from "crypto";
+import https from "https";
 import axios from "axios";
 import ApiError from "../utils/ApiError.js";
 
@@ -35,7 +36,10 @@ const baseUrl    = () => (process.env.FONEPAY_BASE_URL || "").replace(/\/$/, "")
 // UAT routes the third-party APIs behind a gateway prefix (e.g. /merchantThirdpart).
 // Production may not — so it's configurable and defaults to none.
 const pathPrefix = () => (process.env.FONEPAY_PATH_PREFIX || "").replace(/\/$/, "");
+// Third-party APIs (banks / QR / status) sit behind the gateway prefix; the
+// oAuth login endpoint does NOT (it's a separate auth service on UAT).
 const url        = (path) => `${baseUrl()}${pathPrefix()}${path}`;
+const loginUrl   = ()     => `${baseUrl()}${PATHS.login}`;
 const username   = () => process.env.FONEPAY_USERNAME || "";
 const password   = () => process.env.FONEPAY_PASSWORD || "";
 const terminalId = () => process.env.FONEPAY_TERMINAL_ID || "";
@@ -44,6 +48,16 @@ const signAlgo   = () => process.env.FONEPAY_SIGN_ALGO || "RSA-SHA256";
 // PEM keys pasted into a single-line .env value keep their newlines as the
 // literal characters "\n"; restore real newlines so Node can parse them.
 const privateKey = () => (process.env.FONEPAY_PRIVATE_KEY || "").replace(/\\n/g, "\n");
+
+// Fonepay's UAT dev gateway presents a self-signed certificate. When
+// FONEPAY_INSECURE_TLS=true we skip cert verification FOR FONEPAY CALLS ONLY
+// (never global). Must stay off/removed in production.
+let _agent;
+const httpsAgent = () => {
+  if (process.env.FONEPAY_INSECURE_TLS !== "true") return undefined;
+  if (!_agent) _agent = new https.Agent({ rejectUnauthorized: false });
+  return _agent;
+};
 
 export const isFonepayConfigured = () =>
   !!(baseUrl() && username() && password() && terminalId() && privateKey());
@@ -70,11 +84,13 @@ export const signPayload = (rawBody) => {
 const normalizeError = (err, label) => {
   if (err instanceof ApiError) return err;
   if (err.response) {
-    // Fonepay returns { message, status } on failures.
+    // Fonepay returns { message, status } on failures. `message` can be a
+    // validation object, a string, or null — handle all three safely.
     const data = err.response.data || {};
-    const msg = typeof data.message === "object"
-      ? Object.values(data.message).join("; ")
-      : data.message || `Fonepay ${label} failed (${err.response.status})`;
+    const m = data.message;
+    const msg = (m && typeof m === "object") ? Object.values(m).join("; ")
+      : (typeof m === "string" && m) ? m
+      : `Fonepay ${label} failed (${err.response.status})`;
     return new ApiError(502, `Fonepay: ${msg}`);
   }
   if (err.code === "ECONNABORTED") return new ApiError(504, "Fonepay request timed out");
@@ -89,8 +105,9 @@ const login = async () => {
   const body = { username: username(), password: password() };
   const raw = JSON.stringify(body);
   try {
-    const { data } = await axios.post(url(PATHS.login), raw, {
+    const { data } = await axios.post(loginUrl(), raw, {
       timeout: REQUEST_TIMEOUT_MS,
+      httpsAgent: httpsAgent(),
       headers: {
         "Content-Type": "application/json",
         // Basic auth of username:password alongside the RSA signature (doc §9.1).
@@ -132,6 +149,7 @@ const signedPost = async (path, body, label) => {
   const send = async (token) =>
     axios.post(url(path), raw, {
       timeout: REQUEST_TIMEOUT_MS,
+      httpsAgent: httpsAgent(),
       headers: {
         "Content-Type": "application/json",
         Authorization: token, // already "Bearer <jwt>"
@@ -178,6 +196,7 @@ export const fonepayService = {
     const send = async (token) =>
       axios.get(url(PATHS.banks), {
         timeout: REQUEST_TIMEOUT_MS,
+        httpsAgent: httpsAgent(),
         headers: {
           paymentMode: "INTENT",
           Authorization: token,
