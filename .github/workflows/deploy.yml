@@ -92,9 +92,11 @@ jobs:
           script: |
             set -e
 
-            # ── 1. Pull latest code from GitHub ───────────────────
+            # ── 1. Sync code with GitHub (server mirrors origin/main;
+            #      any commits made directly on the VPS are discarded) ─
             cd ~/E-commerce-vps
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             # ── 2. Authenticate with GHCR on the server ──────────
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
