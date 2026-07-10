@@ -26,7 +26,7 @@ const Inp = ({ label, value, onChange, placeholder, half }) => (
 );
 
 /* Address form */
-function AddressForm({ onSave, onCancel, initial = {} }) {
+function AddressForm({ onSave, onCancel, initial = {}, contactOnly = false }) {
   const [form, setForm] = useState({
     fullName: initial.fullName || '', phone: initial.phone || '',
     pincode:  initial.pincode  || '', state: initial.state  || '',
@@ -73,12 +73,14 @@ function AddressForm({ onSave, onCancel, initial = {} }) {
   };
 
   const phoneValid = isValidPhone(form.phone);
-  // Pincode is optional now (Nepal-first store)
-  const valid = form.fullName && phoneValid && form.city && form.state && form.upayaLocationId;
+  // Pickup needs only contact info (name + phone) — no delivery address.
+  const valid = contactOnly
+    ? (form.fullName && phoneValid)
+    : (form.fullName && phoneValid && form.city && form.state && form.upayaLocationId);
 
   return (
     <div style={{ border: '1px solid #e77600', borderRadius: 6, padding: '18px 20px', background: '#fffdf5', marginTop: 12 }}>
-      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16, color: '#333' }}>Add a new address</div>
+      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 16, color: '#333' }}>{contactOnly ? 'Add your contact details' : 'Add a new address'}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
         <Inp label="Full Name *" value={form.fullName} onChange={e=>set('fullName',e.target.value)} placeholder="Your full name" half />
         <div style={{ flex: '1 1 45%', minWidth: 0 }}>
@@ -88,6 +90,7 @@ function AddressForm({ onSave, onCancel, initial = {} }) {
           {form.phone && !phoneValid && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 3 }}>Phone number must be exactly 10 digits</div>}
         </div>
       </div>
+      {!contactOnly && (<>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
         <div style={{ flex: '1 1 45%', minWidth: 0 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 5 }}>
@@ -128,11 +131,12 @@ function AddressForm({ onSave, onCancel, initial = {} }) {
         <Inp label="Area / Colony / Locality" value={form.area} onChange={e=>set('area',e.target.value)} placeholder="Street, Locality" half />
         <Inp label="Landmark (optional)" value={form.landmark} onChange={e=>set('landmark',e.target.value)} placeholder="Near..." half />
       </div>
+      </>)}
       <div style={{ display: 'flex', gap: 10 }}>
         <button onClick={() => valid && onSave(form)} disabled={!valid}
           style={{ padding: '9px 20px', background: valid ? '#FFD814' : '#f0f0f0', border: '1px solid', borderColor: valid ? '#FBA131' : '#ccc',
             borderRadius: 6, fontWeight: 700, fontSize: 13, cursor: valid ? 'pointer' : 'not-allowed', color: '#111' }}>
-          Add this address
+          {contactOnly ? 'Save & continue' : 'Add this address'}
         </button>
         {onCancel && (
           <button onClick={onCancel}
@@ -761,6 +765,7 @@ export default function CheckoutPage() {
                               {editingAddrId === addr._id ? (
                                 <AddressForm
                                   initial={addr}
+                                  contactOnly={isPickup}
                                   onSave={d => handleUpdateAddress(addr._id, d)}
                                   onCancel={() => setEditingAddrId(null)}
                                 />
@@ -810,6 +815,7 @@ export default function CheckoutPage() {
                       </button>
                     ) : (
                       <AddressForm
+                        contactOnly={isPickup}
                         onSave={handleSaveAddress}
                         onCancel={addresses.length > 0 ? () => { setShowAddForm(false); setSelectedId(addresses[0]._id); } : undefined}
                       />

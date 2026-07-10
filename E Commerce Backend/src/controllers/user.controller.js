@@ -79,14 +79,17 @@ const validateAddressFormats = ({ pincode, phone }) => {
 export const addAddress = async (req, res, next) => {
   try {
     const { fullName, phone, pincode, state, city, houseNo, area, landmark, upayaLocationId, upayaAreaId } = req.body;
-    if (!fullName || !phone || !state || !city || !houseNo || !area) {
-      throw new ApiError(400, "Required address fields missing");
+    // Name + phone are always required; the rest are delivery details (a
+    // pickup-from-shop contact only supplies name + phone).
+    if (!fullName || !phone) {
+      throw new ApiError(400, "Name and phone are required");
     }
     validateAddressFormats({ pincode, phone });
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { $push: { addresses: {
-        fullName, phone: cleanPhone(phone), pincode: pincode || "", state, city, houseNo, area, landmark,
+        fullName, phone: cleanPhone(phone), pincode: pincode || "",
+        state: state || "", city: city || "", houseNo: houseNo || "", area: area || "", landmark: landmark || "",
         upayaLocationId: upayaLocationId != null ? Number(upayaLocationId) : null,
         upayaAreaId:     upayaAreaId     != null ? Number(upayaAreaId)     : null,
       } } },
