@@ -5,4 +5,6 @@ export const settingsApi = {
   updateCodSettings:      (data) => client.patch('/settings/cod', data),
   getDeliverySettings:    ()     => client.get('/settings/delivery'),
   updateDeliverySettings: (data) => client.patch('/settings/delivery', data),
+  getPickupSettings:      ()     => client.get('/settings/pickup'),
+  updatePickupSettings:   (data) => client.patch('/settings/pickup', data),
 };

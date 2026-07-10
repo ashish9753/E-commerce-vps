@@ -54,6 +54,9 @@ const orderSchema = new mongoose.Schema(
     orderNumber: { type: String, unique: true },
     orderItems: [orderItemSchema],
     shippingAddress: shippingAddressSchema,
+    // DELIVERY = shipped to the customer (Upaya); PICKUP = customer collects
+    // from the shop (no delivery charge, never dispatched to Upaya).
+    fulfillmentType: { type: String, enum: ["DELIVERY", "PICKUP"], default: "DELIVERY" },
     paymentMethod: { type: String, enum: ["COD", "ONLINE"], required: true },
     paymentStatus: {
       type: String,

@@ -146,7 +146,7 @@ function AddressForm({ onSave, onCancel, initial = {} }) {
 }
 
 /* Order summary sidebar */
-function OrderSummary({ items, subtotal, deliveryCharge, discountAmount, total, onPlace, loading, canPlace, step, codBookingAmount, bookingConfirmed, paymentMethod, freeShipping, freebie }) {
+function OrderSummary({ items, subtotal, deliveryCharge, discountAmount, total, onPlace, loading, canPlace, step, codBookingAmount, bookingConfirmed, paymentMethod, freeShipping, freebie, isPickup }) {
   // `total` is the order grand total — also used by the COD-booking breakdown
   // below to compute "Pay on delivery" = total − booking. Kept as a local alias
   // so the markup reads clearly; the parent doesn't pass `checkoutTotal`.
@@ -182,11 +182,12 @@ function OrderSummary({ items, subtotal, deliveryCharge, discountAmount, total, 
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Delivery:</span>
+            <span>{isPickup ? 'Pickup:' : 'Delivery:'}</span>
             <span style={{ color: deliveryCharge === 0 ? '#007600' : undefined }}>
-              {deliveryCharge === 0
-                ? (freeShipping ? 'FREE (coupon)' : 'FREE')
-                : formatPriceShort(deliveryCharge)}
+              {isPickup ? 'FREE (pickup)'
+                : deliveryCharge === 0
+                  ? (freeShipping ? 'FREE (coupon)' : 'FREE')
+                  : formatPriceShort(deliveryCharge)}
             </span>
           </div>
           <div style={{ borderTop: '1px solid #ddd', paddingTop: 10, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 17, color: '#B12704' }}>
@@ -354,11 +355,24 @@ export default function CheckoutPage() {
   const [codCfg, setCodCfg]                   = useState(null);
   // After the order is created we show the live Fonepay QR panel for the
   // customer to pay. `pendingPayment` = { orderId, purpose, amount } | null.
-  const [pendingPayment, setPendingPayment]   = useState(null);
+  // Persisted to sessionStorage so a page refresh (or returning from the
+  // banking app) resumes the same QR instead of losing it.
+  const [pendingPayment, setPendingPayment]   = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('fonepayPending')) || null; }
+    catch { return null; }
+  });
+  useEffect(() => {
+    if (pendingPayment) sessionStorage.setItem('fonepayPending', JSON.stringify(pendingPayment));
+    else sessionStorage.removeItem('fonepayPending');
+  }, [pendingPayment]);
   const [paymentMethod, setPaymentMethod]       = useState('COD');
   const [deliveryCheck, setDeliveryCheck]       = useState(null); // { available, city, deliveryCharge } | null
   const [deliveryChecking, setDeliveryChecking] = useState(false);
   const [orderSubmitted, setOrderSubmitted]     = useState(false);
+  // Fulfillment: DELIVERY (shipped via Upaya) or PICKUP (collect from shop).
+  const [pickupCfg, setPickupCfg]               = useState(null);
+  const [fulfillment, setFulfillment]           = useState('DELIVERY');
+  const isPickup = fulfillment === 'PICKUP';
 
   // Buy-now: synthetic display items + totals (bypasses cart entirely)
   const checkoutItems    = buyNow
@@ -378,7 +392,9 @@ export default function CheckoutPage() {
   const addressDelivery   = deliveryCheck?.available && typeof deliveryCheck.deliveryCharge === 'number'
     ? deliveryCheck.deliveryCharge
     : null;
-  const checkoutDelivery  = effectiveFreeShipping ? 0
+  // Pickup-from-shop → no delivery charge at all.
+  const checkoutDelivery  = isPickup ? 0
+    : effectiveFreeShipping ? 0
     : addressDelivery !== null ? addressDelivery
     : cartLevelDelivery;
   const checkoutDiscount = buyNow ? buyNowDiscount : discountAmount;
@@ -413,7 +429,23 @@ export default function CheckoutPage() {
         if (!enabled || tooLow || tooHigh) setPaymentMethod('FONEPAY');
       })
       .catch(() => {});
+    settingsApi.getPickupSettings()
+      .then(r => setPickupCfg(r.data?.data?.pickupSettings || null))
+      .catch(() => {});
   }, [user, navigate]);
+
+  // Pickup availability — admin toggle + price-range limits. Checked against the
+  // item value (no delivery), matching the backend's pickup totalPrice.
+  const pickupTotal    = Math.max(0, checkoutSubtotal - checkoutDiscount);
+  const pickupMin      = pickupCfg?.minOrderAmount || 0;
+  const pickupMax      = pickupCfg?.maxOrderAmount || 0;
+  const pickupInRange  = !((pickupMin > 0 && pickupTotal < pickupMin) || (pickupMax > 0 && pickupTotal > pickupMax));
+  const pickupAvailable = !!pickupCfg?.enabled && pickupInRange;
+
+  // If pickup was selected but becomes unavailable (e.g. total changed), revert.
+  useEffect(() => {
+    if (isPickup && pickupCfg && !pickupAvailable) setFulfillment('DELIVERY');
+  }, [isPickup, pickupAvailable, pickupCfg]);
 
   const codAvailable = codCfg
     ? (codCfg.codEnabled ?? codCfg.enabled ?? true)
@@ -503,16 +535,19 @@ export default function CheckoutPage() {
     }
   };
 
-  // Check delivery whenever selected address changes
+  // Check delivery whenever the selected address changes. Pickup-from-shop needs
+  // no delivery check (and must never call Upaya), so mark it available directly.
   useEffect(() => {
+    if (isPickup) { setDeliveryCheck({ available: true, source: 'pickup' }); return; }
     const addr = addresses.find(a => a._id === selectedAddressId);
     if (addr) checkDelivery(addr);
     else setDeliveryCheck(null);
-  }, [selectedAddressId, addresses]);
+  }, [selectedAddressId, addresses, isPickup]);
 
   // Empty-cart redirect — MUST be after all hooks above so the hook count is
-  // consistent across renders (Rules of Hooks).
-  if (!buyNow && items.length === 0 && !orderSubmitted) { navigate('/cart'); return null; }
+  // consistent across renders (Rules of Hooks). Never bounce away while a
+  // Fonepay payment is pending (e.g. after a refresh mid-payment).
+  if (!buyNow && items.length === 0 && !orderSubmitted && !pendingPayment) { navigate('/cart'); return null; }
 
   const handleSaveAddress = async (formData) => {
     try {
@@ -552,6 +587,7 @@ export default function CheckoutPage() {
     const result = await placeOrder({
       shippingAddressId: selectedAddressId,
       paymentMethod: method,
+      fulfillmentType: fulfillment,
       ...buyNowExtra,
     });
     if (!result.success) {
@@ -677,9 +713,41 @@ export default function CheckoutPage() {
           {step === 1 && (
             <div style={{ background: 'white', border: '1px solid #ddd', borderRadius: 6, overflow: 'hidden' }}>
               <div style={{ background: '#232F3E', padding: '12px 20px' }}>
-                <div style={{ color: 'white', fontWeight: 700, fontSize: 16 }}>Step 1: Choose a shipping address</div>
+                <div style={{ color: 'white', fontWeight: 700, fontSize: 16 }}>
+                  Step 1: {isPickup ? 'Contact details & pickup' : 'Choose a shipping address'}
+                </div>
               </div>
               <div style={{ padding: 20 }}>
+                {/* Fulfillment method — only shown when the shop offers pickup */}
+                {pickupCfg?.enabled && (
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#333', marginBottom: 10 }}>How would you like to get your order?</div>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      <div onClick={() => setFulfillment('DELIVERY')}
+                        style={{ flex: '1 1 200px', border: `2px solid ${!isPickup ? '#FF9900' : '#ddd'}`, borderRadius: 8, padding: '14px 16px', cursor: 'pointer', background: !isPickup ? '#fffbf0' : 'white', display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <span style={{ fontSize: 24 }}>🚚</span>
+                        <div><div style={{ fontWeight: 700, fontSize: 14 }}>Home Delivery</div><div style={{ fontSize: 12, color: '#666' }}>Shipped to your address</div></div>
+                      </div>
+                      <div onClick={() => pickupAvailable && setFulfillment('PICKUP')}
+                        style={{ flex: '1 1 200px', border: `2px solid ${isPickup ? '#16a34a' : '#ddd'}`, borderRadius: 8, padding: '14px 16px', cursor: pickupAvailable ? 'pointer' : 'not-allowed', background: isPickup ? '#f0fdf4' : (pickupAvailable ? 'white' : '#f9fafb'), opacity: pickupAvailable ? 1 : 0.6, display: 'flex', gap: 12, alignItems: 'center' }}>
+                        <span style={{ fontSize: 24 }}>🏪</span>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>Pickup from Shop</div>
+                          {pickupAvailable
+                            ? <div style={{ fontSize: 12, color: '#16a34a' }}>Free · collect at the store</div>
+                            : <div style={{ fontSize: 12, color: '#ef4444' }}>{pickupMin > 0 && pickupTotal < pickupMin ? `Min Rs. ${pickupMin.toLocaleString('en-IN')} for pickup` : `Not available above Rs. ${pickupMax.toLocaleString('en-IN')}`}</div>}
+                        </div>
+                      </div>
+                    </div>
+                    {isPickup && (
+                      <div style={{ marginTop: 12, background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '12px 16px' }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#166534' }}>🏪 Pickup location{pickupCfg.shopName ? ` — ${pickupCfg.shopName}` : ''}</div>
+                        <div style={{ fontSize: 13, color: '#15803d', marginTop: 3 }}>{pickupCfg.shopAddress || 'Collect your order from our shop — we\'ll notify you when it\'s ready.'}</div>
+                        <div style={{ fontSize: 12, color: '#166534', marginTop: 4 }}>No delivery charge. Please bring your order number.</div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {addrLoading ? (
                   <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>Loading addresses…</div>
                 ) : (
@@ -747,8 +815,8 @@ export default function CheckoutPage() {
                       />
                     )}
 
-                    {/* Delivery availability check result */}
-                    {selectedAddressId && !showAddForm && (
+                    {/* Delivery availability check result — not shown for pickup */}
+                    {selectedAddressId && !showAddForm && !isPickup && (
                       <div style={{ marginTop: 16 }}>
                         {deliveryChecking ? (
                           <div style={{ padding: '10px 14px', background: '#f3f4f6', borderRadius: 6, fontSize: 13, color: '#555' }}>
@@ -996,17 +1064,23 @@ export default function CheckoutPage() {
                   <div style={{ color: 'white', fontWeight: 700, fontSize: 16 }}>Review your order</div>
                 </div>
 
-                {/* Delivery summary */}
+                {/* Fulfillment summary */}
                 <div style={{ padding: '16px 20px', borderBottom: '1px solid #eee', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#f0f9f4', border: '2px solid #22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📦</div>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#f0f9f4', border: '2px solid #22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>{isPickup ? '🏪' : '📦'}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>Delivering to</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>{isPickup ? 'Pickup from shop' : 'Delivering to'}</div>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{selectedAddress?.fullName}</div>
-                    <div style={{ fontSize: 13, color: '#555', marginTop: 2, lineHeight: 1.6 }}>
-                      {selectedAddress?.houseNo && `${selectedAddress.houseNo}, `}
-                      {selectedAddress?.area && `${selectedAddress.area}, `}
-                      {selectedAddress?.city}, {selectedAddress?.state} – {selectedAddress?.pincode}
-                    </div>
+                    {isPickup ? (
+                      <div style={{ fontSize: 13, color: '#15803d', marginTop: 2, lineHeight: 1.6 }}>
+                        {pickupCfg?.shopName ? <b>{pickupCfg.shopName}. </b> : ''}{pickupCfg?.shopAddress || 'Collect from our shop — we\'ll notify you when it\'s ready.'}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 13, color: '#555', marginTop: 2, lineHeight: 1.6 }}>
+                        {selectedAddress?.houseNo && `${selectedAddress.houseNo}, `}
+                        {selectedAddress?.area && `${selectedAddress.area}, `}
+                        {selectedAddress?.city}, {selectedAddress?.state} – {selectedAddress?.pincode}
+                      </div>
+                    )}
                     <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>📱 {selectedAddress?.phone}</div>
                   </div>
                   <button onClick={() => setStep(1)}
@@ -1122,6 +1196,7 @@ export default function CheckoutPage() {
           paymentMethod={paymentMethod}
           freeShipping={effectiveFreeShipping}
           freebie={effectiveFreebie}
+          isPickup={isPickup}
         />
       </div>
     </div>

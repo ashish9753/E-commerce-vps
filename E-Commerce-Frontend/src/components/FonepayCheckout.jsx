@@ -34,11 +34,22 @@ export default function FonepayCheckout({
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
+  const succeed = useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    stopPolling();
+    setPhase('success');
+    setTimeout(() => onSuccess?.(), 900);
+  }, [onSuccess]);
+
   const generate = useCallback(async () => {
     setPhase('loading');
     setError('');
     try {
       const { data } = await paymentsApi.createQr(orderId, purpose);
+      // Customer may have already paid on a previous visit/QR — the backend
+      // reconciles and tells us, so we go straight to success.
+      if (data.data?.alreadyPaid) { succeed(); return; }
       setQr(data.data);
       setPhase('waiting');
     } catch (err) {
@@ -50,7 +61,7 @@ export default function FonepayCheckout({
         setError(getErrorMessage(err));
       }
     }
-  }, [orderId, purpose]);
+  }, [orderId, purpose, succeed]);
 
   // Initial QR generation.
   useEffect(() => { generate(); }, [generate]);
@@ -62,22 +73,28 @@ export default function FonepayCheckout({
       const { data } = await paymentsApi.getStatus(orderId, purpose);
       const status = data.data?.status;
       if (status === 'SUCCESS') {
-        doneRef.current = true;
-        stopPolling();
-        setPhase('success');
-        setTimeout(() => onSuccess?.(), 900); // brief "paid!" beat before advancing
+        succeed();
       } else if (status === 'FAILED') {
         stopPolling();
         setPhase('failed');
         setError(data.data?.message || 'The payment did not go through. Please try again.');
       }
     } catch { /* transient — keep polling */ }
-  }, [orderId, purpose, onSuccess]);
+  }, [orderId, purpose, succeed]);
 
   useEffect(() => {
     if (phase !== 'waiting') return;
     pollRef.current = setInterval(checkStatus, POLL_MS);
-    return stopPolling;
+    // Re-check immediately when the customer returns to the tab (e.g. back from
+    // their banking app) or the page becomes visible again — Amazon-style.
+    const onWake = () => { if (!document.hidden) checkStatus(); };
+    window.addEventListener('focus', onWake);
+    document.addEventListener('visibilitychange', onWake);
+    return () => {
+      stopPolling();
+      window.removeEventListener('focus', onWake);
+      document.removeEventListener('visibilitychange', onWake);
+    };
   }, [phase, checkStatus]);
 
   const payAmount = qr?.amount ?? amount;

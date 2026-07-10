@@ -132,6 +132,10 @@ const syncOrderStatusFromUpayaTracking = async (order, tracking) => {
 };
 
 const dispatchToUpayaForFulfillment = async (order) => {
+  // Pickup-from-shop orders are collected in person — never dispatch to Upaya.
+  if (order.fulfillmentType === "PICKUP") {
+    return { dispatched: false, ref: null, skipped: "pickup" };
+  }
   if (!["CONFIRMED", "PACKED", "SHIPPED", "OUT_FOR_DELIVERY"].includes(order.orderStatus)) {
     return { dispatched: false, ref: null };
   }
@@ -163,7 +167,8 @@ const dispatchToUpayaForFulfillment = async (order) => {
  */
 export const placeOrder = async (req, res, next) => {
   try {
-    const { shippingAddressId, paymentMethod, useCart = true, directItem } = req.body;
+    const { shippingAddressId, paymentMethod, useCart = true, directItem, fulfillmentType = "DELIVERY" } = req.body;
+    const isPickup = String(fulfillmentType).toUpperCase() === "PICKUP";
 
     if (!shippingAddressId || !paymentMethod) {
       throw new ApiError(400, "shippingAddressId and paymentMethod are required");
@@ -239,39 +244,45 @@ export const placeOrder = async (req, res, next) => {
       });
     }
 
-    // Shipping calculation — in priority order:
+    // Shipping calculation. Pickup-from-shop orders are never delivered, so we
+    // skip DeliveryArea/Upaya entirely and charge nothing. For delivery orders,
+    // resolve in priority order:
     //   1. Custom DeliveryArea entry matching the address's city (admin's
     //      "Custom / Fallback Delivery Areas" panel) — exact, case-insensitive
     //   2. Upaya live rate when the address has an upayaLocationId
     //   3. Admin-configured default (deliverySettings: flat charge, free over threshold)
     let shippingPrice;
-    const addrCity = address.city?.trim();
-    if (addrCity) {
-      const area = await DeliveryArea.findOne({
-        city: { $regex: `^${addrCity}$`, $options: "i" },
-        isActive: true,
-      }).select("deliveryCharge");
-      if (area) shippingPrice = Number(area.deliveryCharge) || 0;
-    }
-    if (shippingPrice === undefined && address.upayaLocationId) {
-      try {
-        const rateResp = await upayaService.rate({
-          location_id: address.upayaLocationId,
-          initial_weight: 1,
-          service_type_id: 3,
-          order_type: "delivery_order",
-        });
-        const r = rateResp?.data?.rate || rateResp?.rate || rateResp;
-        const charge = Number(r?.total ?? r?.amount ?? r?.rate ?? r?.deliveryCharge);
-        if (Number.isFinite(charge) && charge >= 0) shippingPrice = charge;
-      } catch { /* fall through to default */ }
-    }
-    if (shippingPrice === undefined) {
-      const dsDoc = await Settings.findOne({ key: "deliverySettings" });
-      const ds = dsDoc?.value ?? { defaultCharge: 50, freeThresholdEnabled: true, freeThreshold: 500 };
-      shippingPrice = (ds.freeThresholdEnabled && itemsPrice >= Number(ds.freeThreshold))
-        ? 0
-        : Number(ds.defaultCharge) || 0;
+    if (isPickup) {
+      shippingPrice = 0;
+    } else {
+      const addrCity = address.city?.trim();
+      if (addrCity) {
+        const area = await DeliveryArea.findOne({
+          city: { $regex: `^${addrCity}$`, $options: "i" },
+          isActive: true,
+        }).select("deliveryCharge");
+        if (area) shippingPrice = Number(area.deliveryCharge) || 0;
+      }
+      if (shippingPrice === undefined && address.upayaLocationId) {
+        try {
+          const rateResp = await upayaService.rate({
+            location_id: address.upayaLocationId,
+            initial_weight: 1,
+            service_type_id: 3,
+            order_type: "delivery_order",
+          });
+          const r = rateResp?.data?.rate || rateResp?.rate || rateResp;
+          const charge = Number(r?.total ?? r?.amount ?? r?.rate ?? r?.deliveryCharge);
+          if (Number.isFinite(charge) && charge >= 0) shippingPrice = charge;
+        } catch { /* fall through to default */ }
+      }
+      if (shippingPrice === undefined) {
+        const dsDoc = await Settings.findOne({ key: "deliverySettings" });
+        const ds = dsDoc?.value ?? { defaultCharge: 50, freeThresholdEnabled: true, freeThreshold: 500 };
+        shippingPrice = (ds.freeThresholdEnabled && itemsPrice >= Number(ds.freeThreshold))
+          ? 0
+          : Number(ds.defaultCharge) || 0;
+      }
     }
 
     // Coupon discount — applies to BOTH Cart and Buy Now flows.
@@ -359,6 +370,23 @@ export const placeOrder = async (req, res, next) => {
 
     const totalPrice = parseFloat((itemsPrice + shippingPrice - discountAmount).toFixed(2));
 
+    // Pickup-from-shop eligibility (admin toggle + price-range limits)
+    if (isPickup) {
+      const settingsDoc = await Settings.findOne({ key: "pickupSettings" });
+      const cfg = settingsDoc?.value ?? {};
+      if (cfg.enabled !== true) {
+        throw new ApiError(400, "Pickup from shop is currently unavailable.");
+      }
+      const minAmt = cfg.minOrderAmount || 0;
+      const maxAmt = cfg.maxOrderAmount || 0;
+      if (minAmt > 0 && totalPrice < minAmt) {
+        throw new ApiError(400, `Pickup from shop requires a minimum order of Rs. ${minAmt}.`);
+      }
+      if (maxAmt > 0 && totalPrice > maxAmt) {
+        throw new ApiError(400, `Pickup from shop is not available for orders above Rs. ${maxAmt}.`);
+      }
+    }
+
     // Order limits + COD eligibility + booking
     let codBookingAmount = 0;
     let codBookingStatus = "NOT_REQUIRED";
@@ -397,6 +425,7 @@ export const placeOrder = async (req, res, next) => {
       userId: user._id.toString(),
       orderItems,
       shippingAddress: address.toObject(),
+      fulfillmentType: isPickup ? "PICKUP" : "DELIVERY",
       paymentMethod,
       itemsPrice,
       shippingPrice,
