@@ -15,20 +15,26 @@ import { formatPriceShort } from '../utils/formatters';
  *   purpose = 'booking' → COD non-refundable advance
  */
 const POLL_MS = 3000;
+const DEFAULT_TTL_SEC = 300; // QR stays active for 5 minutes, then auto-expires
+
+const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 export default function FonepayCheckout({
   orderId,
   purpose = 'full',
   amount,
   accent = '#e2117b',
+  ttlSeconds = DEFAULT_TTL_SEC,
   onSuccess,
   onCancel,
 }) {
-  const [phase, setPhase] = useState('loading'); // loading | waiting | success | failed | unavailable
+  const [phase, setPhase] = useState('loading'); // loading | waiting | success | failed | unavailable | expired
   const [qr, setQr] = useState(null);            // { qrImage, prn, amount }
   const [error, setError] = useState('');
+  const [remaining, setRemaining] = useState(ttlSeconds); // seconds left before the QR expires
   const pollRef = useRef(null);
   const doneRef = useRef(false);                 // guard against double onSuccess
+  const expiryRef = useRef(0);                   // absolute expiry time (ms)
 
   const stopPolling = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -51,6 +57,8 @@ export default function FonepayCheckout({
       // reconciles and tells us, so we go straight to success.
       if (data.data?.alreadyPaid) { succeed(); return; }
       setQr(data.data);
+      expiryRef.current = Date.now() + ttlSeconds * 1000;
+      setRemaining(ttlSeconds);
       setPhase('waiting');
     } catch (err) {
       if (err?.response?.status === 503) {
@@ -81,6 +89,20 @@ export default function FonepayCheckout({
       }
     } catch { /* transient — keep polling */ }
   }, [orderId, purpose, succeed]);
+
+  // Countdown → auto-expire the QR when the timer runs out (stops polling and
+  // shows an expired state so the customer can generate a fresh QR).
+  useEffect(() => {
+    if (phase !== 'waiting') return;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((expiryRef.current - Date.now()) / 1000));
+      setRemaining(left);
+      if (left <= 0) { stopPolling(); setPhase('expired'); }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [phase]);
 
   useEffect(() => {
     if (phase !== 'waiting') return;
@@ -141,6 +163,9 @@ export default function FonepayCheckout({
                 <span className="fonepay-pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: accent, display: 'inline-block' }} />
                 Waiting for your payment…
               </div>
+              <div style={{ marginTop: 8, fontSize: 13, fontWeight: 700, color: remaining <= 60 ? '#dc2626' : '#6b7280' }}>
+                ⏱ QR expires in {mmss(remaining)}
+              </div>
             </div>
           </div>
 
@@ -165,6 +190,26 @@ export default function FonepayCheckout({
           <div style={{ fontSize: 40 }}>✅</div>
           <div style={{ marginTop: 8, fontWeight: 800, fontSize: 18, color: '#16a34a' }}>Payment received!</div>
           <div style={{ marginTop: 4, color: '#6b7280', fontSize: 13 }}>Confirming your order…</div>
+        </div>
+      )}
+
+      {phase === 'expired' && (
+        <div style={{ textAlign: 'center', padding: '24px 16px' }}>
+          <div style={{ fontSize: 34 }}>⌛</div>
+          <div style={{ marginTop: 8, fontWeight: 700, color: '#b45309' }}>This QR has expired</div>
+          <div style={{ marginTop: 4, color: '#6b7280', fontSize: 13 }}>Generate a fresh QR to complete your payment.</div>
+          <div style={{ marginTop: 14, display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button onClick={generate}
+              style={{ padding: '9px 20px', background: accent, color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700 }}>
+              Generate new QR
+            </button>
+            {onCancel && (
+              <button onClick={onCancel}
+                style={{ padding: '9px 18px', background: 'white', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontWeight: 600, color: '#555' }}>
+                Pay later
+              </button>
+            )}
+          </div>
         </div>
       )}
 
