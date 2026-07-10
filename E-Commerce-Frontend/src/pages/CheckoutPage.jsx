@@ -518,8 +518,17 @@ export default function CheckoutPage() {
             order_type: 'delivery_order',
           });
           const rate = data.data?.rate || {};
-          const charge = Number(rate.total ?? rate.amount ?? rate.rate ?? rate.deliveryCharge ?? 0);
-          setDeliveryCheck({ available: true, city: addr.city, deliveryCharge: charge, source: 'upaya' });
+          const raw = rate.total ?? rate.amount ?? rate.rate ?? rate.deliveryCharge;
+          const charge = Number(raw);
+          // Mirror the backend EXACTLY: use Upaya's rate only when it's a valid
+          // number; otherwise fall back to the Delivery Settings default (the
+          // backend treats a missing rate as NaN → default, so defaulting to 0
+          // here would wrongly show FREE while the customer is charged the default).
+          if (raw != null && Number.isFinite(charge) && charge >= 0) {
+            setDeliveryCheck({ available: true, city: addr.city, deliveryCharge: charge, source: 'upaya' });
+          } else {
+            setDeliveryCheck({ available: true, city: addr.city, deliveryCharge: settingsFallbackCharge, source: 'default' });
+          }
         } catch {
           setDeliveryCheck({ available: true, city: addr.city, deliveryCharge: settingsFallbackCharge, source: 'default' });
         }
