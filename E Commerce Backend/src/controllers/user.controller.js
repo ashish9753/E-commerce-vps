@@ -64,12 +64,13 @@ export const changePassword = async (req, res, next) => {
   }
 };
 
-// Format validators kept here so add + update apply the same rules. Pincode
-// is optional (Nepal-first), phone must be a 10-digit number.
-const PINCODE_RE = /^\d{6}$/;
+// Format validators kept here so add + update apply the same rules. Postal code
+// is optional (Nepal-first — Nepal uses 5-digit codes); phone must be 10 digits.
+// Accept 4–6 digits so both Nepal (5) and any legacy 6-digit data pass.
+const PINCODE_RE = /^\d{4,6}$/;
 const validateAddressFormats = ({ pincode, phone }) => {
   if (pincode !== undefined && pincode !== "" && !PINCODE_RE.test(String(pincode))) {
-    throw new ApiError(400, "Pincode must be exactly 6 digits");
+    throw new ApiError(400, "Please enter a valid postal code (Nepal uses 5 digits)");
   }
   if (phone !== undefined && !isValidPhone(phone)) {
     throw new ApiError(400, "Phone number must be exactly 10 digits");

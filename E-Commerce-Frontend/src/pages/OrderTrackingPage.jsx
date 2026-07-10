@@ -533,8 +533,13 @@ export default function OrderTrackingPage() {
                 <div style={{ background:'white', border:'1px solid #ddd', borderRadius:8, padding:'18px 20px' }}>
                   <div style={{ fontWeight:700, fontSize:14, marginBottom:12 }}>Need Help?</div>
                   <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                    {[['📞','Contact Support'],['❓','Order FAQs'],['🔄','Return Policy']].map(([ic,label])=>(
-                      <button key={label} style={{ display:'flex',alignItems:'center',gap:10,padding:'8px 0',background:'none',border:'none',cursor:'pointer',fontSize:13,color:'#007185',fontWeight:600,textAlign:'left' }}>
+                    {[
+                      ['📞','Contact Support', `/support?orderId=${order._id}`],
+                      ['❓','Order FAQs',       '/support'],
+                      ['🔄','Return Policy',    `/returns?orderId=${order._id}`],
+                    ].map(([ic,label,to])=>(
+                      <button key={label} onClick={()=>navigate(to)}
+                        style={{ display:'flex',alignItems:'center',gap:10,padding:'8px 0',background:'none',border:'none',cursor:'pointer',fontSize:13,color:'#007185',fontWeight:600,textAlign:'left' }}>
                         {ic} {label}
                       </button>
                     ))}

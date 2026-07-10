@@ -36,6 +36,12 @@ export default function FonepayCheckout({
   const doneRef = useRef(false);                 // guard against double onSuccess
   const expiryRef = useRef(0);                   // absolute expiry time (ms)
 
+  // Keep the latest onSuccess in a ref so our memoized callbacks stay stable —
+  // otherwise a new inline onSuccess from the parent on every re-render would
+  // re-trigger the "generate QR" effect and make the QR flicker.
+  const onSuccessRef = useRef(onSuccess);
+  onSuccessRef.current = onSuccess;
+
   const stopPolling = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
@@ -45,8 +51,8 @@ export default function FonepayCheckout({
     doneRef.current = true;
     stopPolling();
     setPhase('success');
-    setTimeout(() => onSuccess?.(), 900);
-  }, [onSuccess]);
+    setTimeout(() => onSuccessRef.current?.(), 900);
+  }, []);
 
   const generate = useCallback(async () => {
     setPhase('loading');
