@@ -24,9 +24,12 @@ import ApiError from "../utils/ApiError.js";
 const REQUEST_TIMEOUT_MS = 20_000;
 const TOKEN_SAFETY_WINDOW_MS = 60_000; // refresh a minute before nominal expiry
 
-// Endpoints (relative to FONEPAY_BASE_URL) — per Merchant doc v1.9 §9.
+// Endpoints (relative to FONEPAY_BASE_URL) — verified against Fonepay's
+// official Postman collection. All four share the same base path; login is
+// /api/merchant/third-party/v2/login (NOT the merchantDetailsForThirdParty
+// path the PDF shows).
 const PATHS = {
-  login:    "/api/merchant/merchantDetailsForThirdParty/v2/login",
+  login:    "/api/merchant/third-party/v2/login",
   banks:    "/api/merchant/third-party/v2/banks/list",
   intentQr: "/api/merchant/third-party/v2/generate-intent-qr",
   status:   "/api/merchant/third-party/v2/thirdPartyDynamicQrGetStatus",
@@ -35,11 +38,10 @@ const PATHS = {
 const baseUrl    = () => (process.env.FONEPAY_BASE_URL || "").replace(/\/$/, "");
 // UAT routes the third-party APIs behind a gateway prefix (e.g. /merchantThirdpart).
 // Production may not — so it's configurable and defaults to none.
+// Optional gateway prefix (UAT dev gateway uses /merchantThirdparty; Live has none).
 const pathPrefix = () => (process.env.FONEPAY_PATH_PREFIX || "").replace(/\/$/, "");
-// Third-party APIs (banks / QR / status) sit behind the gateway prefix; the
-// oAuth login endpoint does NOT (it's a separate auth service on UAT).
+// All endpoints (login included) share the same base + prefix + path.
 const url        = (path) => `${baseUrl()}${pathPrefix()}${path}`;
-const loginUrl   = ()     => `${baseUrl()}${PATHS.login}`;
 const username   = () => process.env.FONEPAY_USERNAME || "";
 const password   = () => process.env.FONEPAY_PASSWORD || "";
 const terminalId = () => process.env.FONEPAY_TERMINAL_ID || "";
@@ -105,14 +107,14 @@ const login = async () => {
   const body = { username: username(), password: password() };
   const raw = JSON.stringify(body);
   try {
-    const { data } = await axios.post(loginUrl(), raw, {
+    const { data } = await axios.post(url(PATHS.login), raw, {
       timeout: REQUEST_TIMEOUT_MS,
       httpsAgent: httpsAgent(),
       headers: {
         "Content-Type": "application/json",
         // Basic auth of username:password alongside the RSA signature (doc §9.1).
         Authorization: `Basic ${Buffer.from(`${username()}:${password()}`).toString("base64")}`,
-        Signature: signPayload(raw),
+        signature: signPayload(raw),
       },
     });
     const accessToken = data?.accessToken;

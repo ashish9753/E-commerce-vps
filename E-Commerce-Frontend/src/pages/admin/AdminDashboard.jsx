@@ -1838,6 +1838,7 @@ function OrdersTab({ globalSearch = '' }) {
                       <span style={{ fontSize:12, color:C.mute, flexShrink:0 }}>{o.orderItems?.length||0} item{(o.orderItems?.length||0)!==1?'s':''}</span>
                       <span style={{ fontWeight:700, fontSize:13, color:C.text, flexShrink:0 }}>{fmtRs(o.totalPrice)}</span>
                       <Badge text={o.paymentMethod} color={o.paymentMethod==='COD'?C.yellow:C.blue} />
+                      {o.fulfillmentType === 'PICKUP' && <Badge text="🏪 Pickup" color={C.green} />}
                       <Badge text={o.paymentStatus} color={o.paymentStatus==='PAID'?C.green:o.paymentStatus==='FAILED'?C.red:C.yellow} />
                       <Badge text={o.orderStatus} color={STATUS_COLORS[o.orderStatus]||C.mute} />
                       <span style={{ fontSize:11, color:C.mute, flexShrink:0 }}>
@@ -1963,6 +1964,7 @@ function OrdersTab({ globalSearch = '' }) {
                         <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap', marginBottom:14, padding:'10px 14px', background:C.bg, borderRadius:8, border:`1px solid ${C.line}` }}>
                           <div style={{ fontSize:11, fontWeight:700, color:C.mute, textTransform:'uppercase', letterSpacing:'.05em' }}>Payment</div>
                           <Badge text={o.paymentMethod} color={o.paymentMethod==='COD'?C.yellow:C.blue} />
+                      {o.fulfillmentType === 'PICKUP' && <Badge text="🏪 Pickup" color={C.green} />}
                           <Badge text={o.paymentStatus} color={o.paymentStatus==='PAID'?C.green:o.paymentStatus==='FAILED'?C.red:C.yellow} />
                           <span style={{ fontWeight:700, fontSize:13, color:C.text, marginLeft:'auto' }}>{fmtRs(o.totalPrice)}</span>
                         </div>
@@ -3548,6 +3550,10 @@ function AdminSettingsTab() {
   const [dlvSaving, setDlvSaving] = useState(false);
   const [dlvSaved,  setDlvSaved]  = useState(false);
 
+  const [pky, setPky] = useState(null);
+  const [pkySaving, setPkySaving] = useState(false);
+  const [pkySaved,  setPkySaved]  = useState(false);
+
   useEffect(() => {
     settingsApi.getCodSettings()
       .then(r => {
@@ -3572,10 +3578,23 @@ function AdminSettingsTab() {
         });
       })
       .catch(() => {});
+    settingsApi.getPickupSettings()
+      .then(r => {
+        const s = r.data?.data?.pickupSettings || {};
+        setPky({
+          enabled:        s.enabled        ?? false,
+          minOrderAmount: s.minOrderAmount ?? 0,
+          maxOrderAmount: s.maxOrderAmount ?? 0,
+          shopName:       s.shopName       ?? '',
+          shopAddress:    s.shopAddress    ?? '',
+        });
+      })
+      .catch(() => {});
   }, []);
 
   const set = (k, v) => setCfg(prev => ({ ...prev, [k]: v }));
   const setD = (k, v) => setDlv(prev => ({ ...prev, [k]: v }));
+  const setP = (k, v) => setPky(prev => ({ ...prev, [k]: v }));
 
   const save = async () => {
     setSaving(true);
@@ -3592,7 +3611,14 @@ function AdminSettingsTab() {
     setTimeout(() => setDlvSaved(false), 2500);
   };
 
-  if (!cfg || !dlv) return <div style={{ padding: 40, textAlign: 'center', color: C.mute }}>Loading settings…</div>;
+  const savePickup = async () => {
+    setPkySaving(true);
+    await settingsApi.updatePickupSettings(pky).catch(() => {});
+    setPkySaving(false); setPkySaved(true);
+    setTimeout(() => setPkySaved(false), 2500);
+  };
+
+  if (!cfg || !dlv || !pky) return <div style={{ padding: 40, textAlign: 'center', color: C.mute }}>Loading settings…</div>;
 
   const inp = {
     width: '100%', height: 40, padding: '0 12px',
@@ -3780,6 +3806,51 @@ function AdminSettingsTab() {
             {dlvSaving ? 'Saving…' : 'Save Delivery Settings'}
           </Btn>
           {dlvSaved && <span style={{ color: C.green, fontWeight: 600, fontSize: 13 }}>✓ Saved</span>}
+        </div>
+      </div>
+
+      {/* ── Pickup from Shop ── */}
+      <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.line}`, overflow: 'hidden', marginTop: 16 }}>
+        <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: C.text }}>Pickup from Shop</div>
+            <div style={{ fontSize: 11.5, color: C.mute, marginTop: 1 }}>Let customers collect orders from the shop. No delivery charge — never sent to Upaya.</div>
+          </div>
+          <Toggle on={pky.enabled} onChange={() => setP('enabled', !pky.enabled)} />
+        </div>
+        {pky.enabled && (
+          <>
+            <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.line}` }}>
+              <div style={{ fontSize: 11.5, color: C.mute, marginBottom: 14 }}>Order amount range allowed for pickup. Leave empty for no limit.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={lbl}>Minimum Amount (Rs.)</label>
+                  <input type="number" min="0" value={pky.minOrderAmount === 0 ? '' : pky.minOrderAmount} placeholder="No minimum"
+                    onChange={e => setP('minOrderAmount', e.target.value === '' ? 0 : Number(e.target.value))} style={inp} />
+                </div>
+                <div>
+                  <label style={lbl}>Maximum Amount (Rs.)</label>
+                  <input type="number" min="0" value={pky.maxOrderAmount === 0 ? '' : pky.maxOrderAmount} placeholder="No maximum"
+                    onChange={e => setP('maxOrderAmount', e.target.value === '' ? 0 : Number(e.target.value))} style={inp} />
+                </div>
+              </div>
+            </div>
+            <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.line}` }}>
+              <label style={lbl}>Shop Name (shown to customer)</label>
+              <input value={pky.shopName} placeholder="e.g. TradeEngine Store, Kathmandu"
+                onChange={e => setP('shopName', e.target.value)} style={inp} />
+              <label style={{ ...lbl, marginTop: 14 }}>Pickup Address / Instructions</label>
+              <textarea value={pky.shopAddress} placeholder="Shop address, landmark, pickup hours…"
+                onChange={e => setP('shopAddress', e.target.value)}
+                style={{ ...inp, height: 72, padding: '10px 12px', resize: 'vertical' }} />
+            </div>
+          </>
+        )}
+        <div style={{ padding: '14px 22px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Btn variant="primary" onClick={savePickup} disabled={pkySaving} style={{ padding: '9px 26px' }}>
+            {pkySaving ? 'Saving…' : 'Save Pickup Settings'}
+          </Btn>
+          {pkySaved && <span style={{ color: C.green, fontWeight: 600, fontSize: 13 }}>✓ Saved</span>}
         </div>
       </div>
     </div>

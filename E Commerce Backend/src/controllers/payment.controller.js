@@ -40,9 +40,20 @@ const resolvePurpose = (order, purpose) => {
   return order.totalPrice;
 };
 
+// How long a generated QR stays reusable. Within this window we return the
+// SAME QR/reference instead of minting a new one — critical so that if the
+// customer already paid an earlier reference, we never lose track of it (which
+// would take their money without confirming the order). Kept under the unpaid-
+// order auto-cancel window.
+const QR_REUSE_WINDOW_MS = 25 * 60 * 1000;
+
 /**
- * Generate (or re-generate) a dynamic Fonepay QR for an order.
+ * Generate — or safely re-use — a dynamic Fonepay QR for an order.
  * POST /payments/fonepay/:orderId/qr   body: { purpose: "full" | "booking" }
+ *
+ * Idempotent-friendly for refresh / return-from-app: if a fresh pending QR
+ * already exists, the same one is returned (stable reference). If the order is
+ * already paid, responds with { alreadyPaid: true } so the client shows success.
  */
 export const createFonepayQr = async (req, res, next) => {
   try {
@@ -61,45 +72,48 @@ export const createFonepayQr = async (req, res, next) => {
       throw new ApiError(400, "Cannot pay for this order");
     }
 
-    const amount = resolvePurpose(order, purpose);
-    const referenceLabel = buildReferenceLabel(purpose === "booking" ? "BOOKING" : "FULL");
+    // Reconcile first: if the customer already paid (possibly on a previous
+    // visit), confirm it now and tell the client — no new QR needed.
+    const settled = await settleFonepayPayment(order._id, purpose);
+    if (settled.status === "SUCCESS") {
+      return res.json(new ApiResponse(200, { purpose, alreadyPaid: true }, "Payment already received"));
+    }
+    const fresh = settled.order || order;
 
-    const qr = await fonepayService.generateIntentQr({
-      amount,
-      billId: order.orderNumber,
-      referenceLabel,
-    });
+    const amount = resolvePurpose(fresh, purpose);
+    const field = txnFieldFor(purpose);
+    const existing = fresh[field];
+
+    // Re-use a still-fresh pending QR (stable reference). Otherwise mint a new one.
+    const reusable = existing?.prn && existing.qrString && existing.status === "PENDING" &&
+      existing.generatedAt && (Date.now() - new Date(existing.generatedAt).getTime() < QR_REUSE_WINDOW_MS);
+
+    let prn, qrString, websocketUrl, qrDisplayName = "";
+    if (reusable) {
+      ({ prn, qrString, websocketUrl } = existing);
+    } else {
+      const referenceLabel = buildReferenceLabel(purpose === "booking" ? "BOOKING" : "FULL");
+      const qr = await fonepayService.generateIntentQr({ amount, billId: fresh.orderNumber, referenceLabel });
+      ({ prn, qrString, websocketUrl, qrDisplayName } = qr);
+      fresh[field] = {
+        prn, terminalId: qr.terminalId, amount, qrString, websocketUrl,
+        status: "PENDING", generatedAt: new Date(),
+      };
+      await fresh.save();
+    }
 
     // Render the QR payload to a scannable PNG data URL so the frontend just
     // shows an <img> — no client-side QR dependency needed.
-    const qrImage = await QRCode.toDataURL(qr.qrString, { width: 320, margin: 1, errorCorrectionLevel: "M" });
+    const qrImage = await QRCode.toDataURL(qrString, { width: 320, margin: 1, errorCorrectionLevel: "M" });
 
-    const field = txnFieldFor(purpose);
-    order[field] = {
-      prn:          qr.prn,
-      terminalId:   qr.terminalId,
-      amount,
-      qrString:     qr.qrString,
-      websocketUrl: qr.websocketUrl,
-      status:       "PENDING",
-      generatedAt:  new Date(),
-    };
-    await order.save();
-
-    // Best-effort live settlement via Fonepay's WebSocket. Polling the status
-    // endpoint remains the reliable fallback, so any watcher failure is silent.
-    if (qr.websocketUrl) {
-      watchFonepayPayment({ orderId: order._id.toString(), purpose, prn: qr.prn, websocketUrl: qr.websocketUrl });
+    // Best-effort live settlement via Fonepay's WebSocket (deduped per order+purpose).
+    // Polling the status endpoint remains the reliable fallback.
+    if (websocketUrl) {
+      watchFonepayPayment({ orderId: fresh._id.toString(), purpose, prn, websocketUrl });
     }
 
     res.json(new ApiResponse(200, {
-      purpose,
-      amount,
-      prn: qr.prn,
-      qrImage,             // data:image/png;base64,...
-      qrString: qr.qrString,
-      websocketUrl: qr.websocketUrl,
-      qrDisplayName: qr.qrDisplayName,
+      purpose, amount, prn, qrImage, qrString, websocketUrl, qrDisplayName, reused: reusable,
     }, "Scan the QR to complete your payment"));
   } catch (err) {
     next(err);

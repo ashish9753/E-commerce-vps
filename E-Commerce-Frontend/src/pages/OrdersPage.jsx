@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../context/OrderContext';
 import { useToast } from '../context/ToastContext';
 import { reviewsApi } from '../api/reviews';
+import { paymentsApi } from '../api/payments';
 import { ordersApi } from '../api/orders';
 import client, { getErrorMessage } from '../api/client';
 import { formatPriceShort, formatDate } from '../utils/formatters';
@@ -294,6 +295,44 @@ export default function OrdersPage() {
       .then(({ data }) => { if (data?.data?.timeoutMinutes) setPaymentTimeoutMin(data.data.timeoutMinutes); })
       .catch(() => {});
   }, [user]);
+
+  // Auto-reconcile pending Fonepay payments. If the customer paid but left the
+  // checkout page (or the page was refreshed mid-payment), opening My Orders —
+  // or just refocusing the tab after returning from the banking app — silently
+  // re-checks the status and flips the order to PAID. Polls every 5s while any
+  // order is still awaiting payment (Amazon-style).
+  useEffect(() => {
+    const pending = orders.filter(o =>
+      o.orderStatus === 'PLACED' && (
+        (o.paymentMethod === 'ONLINE' && o.paymentStatus === 'PENDING' && o.fonepayPayment?.prn) ||
+        (o.paymentMethod === 'COD' && o.codBookingStatus === 'PENDING' && o.codBookingAmount > 0 && o.fonepayBooking?.prn)
+      )
+    );
+    if (!pending.length) return;
+    let cancelled = false;
+    const checkAll = async () => {
+      let anyPaid = false;
+      for (const o of pending) {
+        const purpose = o.paymentMethod === 'COD' ? 'booking' : 'full';
+        try {
+          const { data } = await paymentsApi.getStatus(o._id, purpose);
+          if (data.data?.status === 'SUCCESS') anyPaid = true;
+        } catch { /* transient — keep trying */ }
+      }
+      if (!cancelled && anyPaid) reloadOrders();
+    };
+    checkAll();
+    const iv = setInterval(checkAll, 5000);
+    const onWake = () => { if (!document.hidden) checkAll(); };
+    window.addEventListener('focus', onWake);
+    document.addEventListener('visibilitychange', onWake);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+      window.removeEventListener('focus', onWake);
+      document.removeEventListener('visibilitychange', onWake);
+    };
+  }, [orders]);
 
   if (!user) return null;
 
@@ -590,6 +629,7 @@ export default function OrdersPage() {
                       Payment: <strong style={{ color:'#333' }}>{order.paymentMethod}</strong>
                       {' · '}
                       <strong style={{ color: order.paymentStatus==='PAID'?'#007600':'#c7a200' }}>{order.paymentStatus}</strong>
+                      {order.fulfillmentType === 'PICKUP' && <span style={{ marginLeft:8, color:'#16a34a', fontWeight:700 }}>· 🏪 Pickup from shop</span>}
                     </span>
                     <div style={{ marginLeft:'auto', display:'flex', gap:8, flexWrap:'wrap' }}>
                       <button onClick={()=>navigate(`/track?id=${order._id}`)}

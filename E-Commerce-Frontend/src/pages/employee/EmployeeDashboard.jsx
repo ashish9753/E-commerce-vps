@@ -963,6 +963,7 @@ function OrdersTab({ onViewReturns }) {
                       <div style={{ display:'flex', gap:12, alignItems:'center', flexWrap:'wrap', marginBottom:14, padding:'10px 14px', background:C.bg, borderRadius:8, border:`1px solid ${C.line}` }}>
                         <div style={{ fontSize:11, fontWeight:700, color:C.mute, textTransform:'uppercase', letterSpacing:'.05em' }}>Payment</div>
                         <Badge text={o.paymentMethod} color={o.paymentMethod==='COD'?C.yellow:C.blue} />
+                        {o.fulfillmentType === 'PICKUP' && <Badge text="🏪 Pickup" color={C.green} />}
                         <Badge text={o.paymentStatus} color={o.paymentStatus==='PAID'?C.green:o.paymentStatus==='FAILED'?C.red:C.yellow} />
                         <span style={{ fontWeight:700, fontSize:13, color:C.text, marginLeft:'auto' }}>{fmtRs(o.totalPrice)}</span>
                       </div>
