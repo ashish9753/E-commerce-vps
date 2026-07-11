@@ -16,6 +16,18 @@ const addressSchema = new mongoose.Schema({
   upayaAreaId:     { type: Number, default: null },
 }, { _id: true });
 
+// One entry per signed-in device. Each device carries its own refresh token,
+// so a user can stay logged in on several devices at once (capped per role —
+// see getMaxSessions). Staff are capped at 1, which reproduces the old
+// single-session behaviour: a new login clears every other session.
+const sessionSchema = new mongoose.Schema({
+  sessionId:    { type: String, required: true },
+  refreshToken: { type: String, required: true },
+  userAgent:    { type: String, default: "" },
+  createdAt:    { type: Date, default: Date.now },
+  lastUsedAt:   { type: Date, default: Date.now },
+}, { _id: false });
+
 const savedRefundDetailsSchema = new mongoose.Schema({
   bankTransfer: {
     accountName: String,
@@ -50,11 +62,10 @@ const userSchema = new mongoose.Schema(
     savedRefundDetails: savedRefundDetailsSchema,
     wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
     isBlocked: { type: Boolean, default: false },
-    refreshToken: { type: String, select: false },
-    // Single-session enforcement for admin/employee accounts. Rotated on every
-    // login — any previously-issued token whose `sid` doesn't match is treated
-    // as revoked and the old browser is forced back to the login page.
-    activeSessionId: { type: String, default: null, select: false },
+    // Active signed-in devices. A token is only valid while its `sid` still
+    // matches a session here, so removing a session (logout, device-cap
+    // eviction, or a staff single-session takeover) revokes it instantly.
+    sessions: { type: [sessionSchema], default: [], select: false },
     lastLogin: Date,
     resetPasswordToken: String,
     resetPasswordExpiry: Date,

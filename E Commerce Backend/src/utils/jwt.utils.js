@@ -1,29 +1,33 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
+const isStaffRole = (role) => role === "admin" || role === "employee";
+
 // Session duration by role:
-//   admin / employee → 1 day  (hard cap, single-session enforced)
-//   regular user     → 30 days (multiple concurrent sessions allowed, no
-//                                single-session restriction)
-export const getRefreshTokenExpiry = (role) =>
-  role === "admin" || role === "employee" ? "1d" : "30d";
+//   admin / employee → 1 day  (hard cap, single-session enforced — signing in
+//                              anywhere else immediately drops the old session)
+//   regular user     → 7 days (up to 5 concurrent devices, see getMaxSessions)
+export const getRefreshTokenExpiry = (role) => (isStaffRole(role) ? "1d" : "7d");
 
 export const getRefreshCookieMaxAge = (role) =>
-  role === "admin" || role === "employee"
-    ? 1  * 24 * 60 * 60 * 1000
-    : 30 * 24 * 60 * 60 * 1000;
+  isStaffRole(role)
+    ? 1 * 24 * 60 * 60 * 1000
+    : 7 * 24 * 60 * 60 * 1000;
 
-// Access-token lifetime — also lifted for regular users so they're not
-// silently bounced to the login page after going idle for a few hours
-// without making an API call (the refresh would still work, but skipping
-// the round-trip when we don't need it is nicer UX).
+// Access-token lifetime is kept in step with the refresh window so a device
+// stays signed in for the whole session without a mid-session bounce.
 //   admin / employee → 1 day  (matches refresh cap)
-//   regular user     → 30 days
+//   regular user     → 7 days
 //   override via env ACCESS_TOKEN_EXPIRY only if you genuinely want shorter
 const accessTokenExpiry = (role) => {
-  if (role === "admin" || role === "employee") return "1d";
-  return process.env.ACCESS_TOKEN_EXPIRY || "30d";
+  if (isStaffRole(role)) return "1d";
+  return process.env.ACCESS_TOKEN_EXPIRY || "7d";
 };
+
+// How many devices/sessions a role may keep signed in at once.
+//   admin / employee → 1  (single session; a new login logs the old one out)
+//   regular user     → 5  (oldest is evicted when a 6th device signs in)
+export const getMaxSessions = (role) => (isStaffRole(role) ? 1 : 5);
 
 export const generateAccessToken = (payload, role) =>
   jwt.sign(payload, process.env.ACCESS_TOKEN_SECRET, {
@@ -41,10 +45,10 @@ export const verifyAccessToken = (token) =>
 export const verifyRefreshToken = (token) =>
   jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
 
-// `sid` is included in both tokens. For admin/employee it must match the
-// user's `activeSessionId` on every authenticated request — otherwise the
-// session is treated as revoked (because somebody else logged into the
-// same account). Regular users get a sid too, but it's ignored.
+// `sid` is included in both tokens and identifies the device session. On every
+// authenticated request it must still match one of the sessions stored on the
+// user (see auth.middleware) — otherwise the token is treated as revoked
+// (single-session takeover for staff, or device-cap eviction / logout).
 export const generateSessionId = () => crypto.randomBytes(16).toString("hex");
 
 export const generateTokenPair = (userId, role, sessionId) => {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Heart, ShoppingCart, Share2, ShieldCheck, RefreshCw, Truck, Star, ChevronRight } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { couponsApi } from '../api/coupons';
@@ -22,6 +22,10 @@ const Rs = (n) => `Rs. ${Math.round(Number(n || 0)).toLocaleString('en-IN')}`;
 export default function ProductDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const routerLocation = useLocation();
+  // Sending the current route as `from` lets LoginPage bring the shopper
+  // straight back to this product after they sign in.
+  const loginState = { state: { from: routerLocation } };
   const { addToCart } = useCart();
   const { toggle, isWished } = useWishlist();
   const { user } = useAuth();
@@ -355,7 +359,7 @@ export default function ProductDetailPage() {
   const descLines = (product.description || '').split('\n').map(l => l.trim()).filter(Boolean);
 
   const handleAddToCart = async () => {
-    if (!user) { toast('Please sign in to add items to cart', 'error'); navigate('/login'); return; }
+    if (!user) { toast('Please sign in to add items to cart', 'error'); navigate('/login', loginState); return; }
     if (hasColors && !activeColor) { toast('Please select a color', 'error'); return; }
     if (qty > effStock) {
       toast(`Only ${effStock} in stock — adjust quantity to continue.`, 'error');
@@ -367,7 +371,7 @@ export default function ProductDetailPage() {
     else toast(`${product.name}${selectedColor ? ` (${selectedColor})` : ''} added to cart`);
   };
   const handleBuyNow = () => {
-    if (!user) { navigate('/login'); return; }
+    if (!user) { toast('Please sign in to continue', 'error'); navigate('/login', loginState); return; }
     if (hasColors && !activeColor) { toast('Please select a color', 'error'); return; }
     if (qty > effStock) {
       toast(`Only ${effStock} in stock — adjust quantity to continue.`, 'error');
@@ -390,7 +394,7 @@ export default function ProductDetailPage() {
     });
   };
   const handleWish = async () => {
-    if (!user) { toast('Please sign in to save items', 'error'); navigate('/login'); return; }
+    if (!user) { toast('Please sign in to save items', 'error'); navigate('/login', loginState); return; }
     await toggle(product);
     toast(wished ? 'Removed from wishlist' : 'Added to wishlist');
   };
@@ -398,7 +402,7 @@ export default function ProductDetailPage() {
   const appliedCouponCode = appliedCoupon?.code || null;
 
   const handleApplyCoupon = async () => {
-    if (!user) { toast('Please sign in to apply coupons', 'error'); navigate('/login'); return; }
+    if (!user) { toast('Please sign in to apply coupons', 'error'); navigate('/login', loginState); return; }
     const code = couponCode.trim().toUpperCase();
     if (!code) return;
     setCouponLoading(true);
@@ -1168,7 +1172,7 @@ export default function ProductDetailPage() {
           ) : (
             <div style={{ background:'#fff8f1', border:'1px solid #fed7aa', borderRadius:8,
               padding:'12px 16px', marginBottom:24, fontSize:13, color:'#9a3412' }}>
-              <span style={{ cursor:'pointer', fontWeight:700, color:'#FF5A1F' }} onClick={() => navigate('/login')}>
+              <span style={{ cursor:'pointer', fontWeight:700, color:'#FF5A1F' }} onClick={() => navigate('/login', loginState)}>
                 Sign in
               </span>{' '}to write a review
             </div>

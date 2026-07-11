@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { adminApi } from '../../api/admin';
@@ -8,6 +8,7 @@ import { returnsApi } from '../../api/returns';
 import { couponsApi } from '../../api/coupons';
 import { productsApi } from '../../api/products';
 import { invalidate } from '../../utils/apiCache';
+import { resolveNotificationLink } from '../../utils/notificationLink';
 import { notificationsApi } from '../../api/notifications';
 import { supportApi } from '../../api/support';
 import {
@@ -1556,10 +1557,17 @@ function OrdersTab({ globalSearch = '' }) {
   const [pendingPayCount, setPendingPay] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
-  useEffect(() => { setSearch(globalSearch); }, [globalSearch]);
-
   // appliedSearch only updates on Enter / Search button — no API calls while typing
   const [appliedSearch, setAppliedSearch] = useState('');
+
+  // Mirror the shared top-bar / deep-link search into this tab and apply it
+  // (server-side) with a light debounce, so notification links that carry
+  // ?search=ORD-… filter straight to that one order.
+  useEffect(() => {
+    setSearch(globalSearch);
+    const t = setTimeout(() => { setPage(1); setAppliedSearch(globalSearch); }, 300);
+    return () => clearTimeout(t);
+  }, [globalSearch]);
   const applySearch = () => { setPage(1); setAppliedSearch(search); };
 
   useEffect(() => { setPage(1); }, [statusF, paymentF]);
@@ -3898,13 +3906,27 @@ const TABS = NAV_SECTIONS.flatMap(s => s.tabs);
 export default function AdminDashboard() {
   const { isMobile, isTablet } = useResponsive();
   const { isLight, toggle: toggleTheme } = useDashboardTheme();
-  const [tab, setTab]               = useState('Overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Restore the active section from the URL (?tab=Employees) so a browser
+  // refresh keeps the admin where they were instead of jumping to Overview.
+  const initialTab = TABS.some(t => t.id === searchParams.get('tab'))
+    ? searchParams.get('tab')
+    : 'Overview';
+  const [tab, setTab]               = useState(initialTab);
   // Keep-alive: track which tabs have ever been visited so we can CSS-hide instead of unmount
-  const [mountedTabs, setMountedTabs] = useState(() => new Set(['Overview']));
-  const navTo = (t) => { setTab(t); setMountedTabs(prev => { if (prev.has(t)) return prev; const n = new Set(prev); n.add(t); return n; }); };
+  const [mountedTabs, setMountedTabs] = useState(() => new Set([initialTab]));
+  const navTo = (t) => {
+    setTab(t);
+    // Mirror the active section into the URL so it survives a refresh / is shareable.
+    // Switching sections clears any deep-link ?search= (e.g. from a notification).
+    setSearchParams(prev => { const p = new URLSearchParams(prev); p.set('tab', t); p.delete('search'); return p; }, { replace: true });
+    setMountedTabs(prev => { if (prev.has(t)) return prev; const n = new Set(prev); n.add(t); return n; });
+  };
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openTicketCount, setOTC]   = useState(0);
-  const [globalSearch, setGlobalSearch] = useState('');
+  // Seed from ?search= so a notification deep link (?tab=Orders&search=ORD-…)
+  // lands pre-filtered on that exact order.
+  const [globalSearch, setGlobalSearch] = useState(() => searchParams.get('search') || '');
   const [refreshKeys, setRefreshKeys]   = useState({});
   const [spinning, setSpinning]         = useState(false);
   const doRefresh = () => {
@@ -3984,6 +4006,18 @@ export default function AdminDashboard() {
     window.addEventListener('overview-nav', handler);
     return () => window.removeEventListener('overview-nav', handler);
   }, [isMobile]);
+
+  // Keep the active section + deep-link search in sync when the URL changes
+  // while the dashboard is already mounted — e.g. clicking a notification's
+  // "Click here" (?tab=Orders&search=ORD-…) without a full page reload.
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t && TABS.some(x => x.id === t)) {
+      setTab(t);
+      setMountedTabs(prev => (prev.has(t) ? prev : new Set(prev).add(t)));
+    }
+    setGlobalSearch(searchParams.get('search') || '');
+  }, [searchParams]);
 
   if (user && user.role !== 'admin') { navigate('/'); return null; }
 
@@ -4218,14 +4252,20 @@ export default function AdminDashboard() {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: n.isRead ? 500 : 700, fontSize: 13, color: n.isRead ? C.sub : C.text, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.title}</div>
                           <div style={{ fontSize: 12, color: C.mute, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{n.message}</div>
-                          {n.link && (
-                            <a href={n.link.startsWith('http') ? n.link : `${window.location.origin}${n.link}`}
+                          {n.link && (() => { const target = resolveNotificationLink(n); return (
+                            <a href={target.startsWith('http') ? target : `${window.location.origin}${target}`}
+                              onClick={e => {
+                                e.stopPropagation();
+                                if (!n.isRead) markRead(n._id);
+                                // In-app order links (/admin?tab=Orders&search=…) switch the
+                                // section in place instead of opening a new tab.
+                                if (target.startsWith('/admin')) { e.preventDefault(); setSearchParams(new URLSearchParams(target.split('?')[1] || ''), { replace: false }); setNotifOpen(false); }
+                              }}
                               target="_blank" rel="noopener noreferrer"
-                              onClick={e => { e.stopPropagation(); if (!n.isRead) markRead(n._id); }}
                               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 6, padding: '4px 10px', borderRadius: 6, background: C.accent + '18', border: `1px solid ${C.accent}44`, fontSize: 12, fontWeight: 700, color: C.accent, textDecoration: 'none' }}>
                               🔗 Click here ↗
                             </a>
-                          )}
+                          ); })()}
                           <div style={{ fontSize: 10, color: C.mute, marginTop: 4 }}>
                             {new Date(n.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                           </div>

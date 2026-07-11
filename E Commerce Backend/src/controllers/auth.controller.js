@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { OAuth2Client } from "google-auth-library";
 import User from "../models/user.model.js";
-import { generateTokenPair, generateSessionId, verifyRefreshToken, getRefreshCookieMaxAge } from "../utils/jwt.utils.js";
+import { generateTokenPair, generateSessionId, verifyRefreshToken, getRefreshCookieMaxAge, getMaxSessions } from "../utils/jwt.utils.js";
 import { sendEmail, passwordResetEmail } from "../utils/email.utils.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
@@ -37,21 +37,41 @@ const verifyGoogleIdToken = async (idToken) => {
   }
 };
 
+// Register a freshly-minted session on the user, enforcing the per-role device
+// cap. Staff (cap 1) drop every other session, so an old browser/tab loses
+// access on its next API call — the classic single-session takeover. Regular
+// users keep up to 5 devices; when a 6th signs in the least-recently-used one
+// is evicted. Mutates `user.sessions` in place (caller saves).
+const registerSession = (user, sessionId, refreshToken, req) => {
+  const max = getMaxSessions(user.role);
+  let sessions = Array.isArray(user.sessions) ? [...user.sessions] : [];
+  if (max <= 1) {
+    sessions = []; // single-session roles: clear everything else first
+  } else if (sessions.length >= max) {
+    // Evict oldest-used sessions until there's room for the new one.
+    sessions.sort((a, b) => new Date(a.lastUsedAt) - new Date(b.lastUsedAt));
+    sessions = sessions.slice(sessions.length - (max - 1));
+  }
+  sessions.push({
+    sessionId,
+    refreshToken,
+    userAgent: String(req?.headers?.["user-agent"] || "").slice(0, 300),
+    createdAt: new Date(),
+    lastUsedAt: new Date(),
+  });
+  user.sessions = sessions;
+};
+
 const issueSessionForUser = async (req, res, user) => {
   if (user.isBlocked) throw new ApiError(403, "Your account has been blocked");
-  // Mint a fresh sessionId on every login. For admin/employee this is what
-  // forces any previously-open browser/tab to lose access on its next API
-  // call (auth middleware compares the token's `sid` to `activeSessionId`).
   const sessionId = generateSessionId();
   const { accessToken, refreshToken } = generateTokenPair(user._id, user.role, sessionId);
-  user.refreshToken = refreshToken;
-  user.activeSessionId = sessionId;
+  registerSession(user, sessionId, refreshToken, req);
   user.lastLogin = new Date();
   await user.save({ validateBeforeSave: false });
   const userObj = user.toObject();
   delete userObj.password;
-  delete userObj.refreshToken;
-  delete userObj.activeSessionId;
+  delete userObj.sessions;
   setRefreshCookie(req, res, refreshToken, user.role);
   return { user: userObj, accessToken };
 };
@@ -111,11 +131,12 @@ export const register = async (req, res, next) => {
 
     const sessionId = generateSessionId();
     const { accessToken, refreshToken } = generateTokenPair(user._id, user.role, sessionId);
-    await User.findByIdAndUpdate(user._id, { refreshToken, activeSessionId: sessionId });
+    registerSession(user, sessionId, refreshToken, req);
+    await user.save({ validateBeforeSave: false });
 
     const userObj = user.toObject();
     delete userObj.password;
-    delete userObj.refreshToken;
+    delete userObj.sessions;
 
     setRefreshCookie(req, res, refreshToken, user.role);
     res.status(201).json(
@@ -131,7 +152,7 @@ export const login = async (req, res, next) => {
     const { email, password } = req.body;
     if (!email || !password) throw new ApiError(400, "Email and password required");
 
-    const user = await User.findOne({ email }).select("+password +refreshToken");
+    const user = await User.findOne({ email }).select("+password +sessions");
     if (!user || !(await user.comparePassword(password))) {
       throw new ApiError(401, "User not found");
     }
@@ -139,14 +160,13 @@ export const login = async (req, res, next) => {
 
     const sessionId = generateSessionId();
     const { accessToken, refreshToken } = generateTokenPair(user._id, user.role, sessionId);
-    user.refreshToken = refreshToken;
-    user.activeSessionId = sessionId;
+    registerSession(user, sessionId, refreshToken, req);
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
     const userObj = user.toObject();
     delete userObj.password;
-    delete userObj.refreshToken;
+    delete userObj.sessions;
 
     setRefreshCookie(req, res, refreshToken, user.role);
     res.json(new ApiResponse(200, { user: userObj, accessToken }, "Login successful"));
@@ -163,27 +183,33 @@ export const refreshToken = async (req, res, next) => {
     if (!token || typeof token !== "string") throw new ApiError(401, "Refresh token required");
 
     const decoded = verifyRefreshToken(token);
-    const user = await User.findById(decoded._id).select("+refreshToken +activeSessionId");
+    const user = await User.findById(decoded._id).select("+sessions");
 
-    if (!user || user.refreshToken !== token) {
+    // The session must still exist AND still hold this exact refresh token
+    // (tokens rotate on every refresh, so a replayed old token won't match).
+    // A missing session means it was revoked: staff single-session takeover,
+    // device-cap eviction, logout, or password reset.
+    const idx = Array.isArray(user?.sessions)
+      ? user.sessions.findIndex((s) => s.sessionId === decoded.sid && s.refreshToken === token)
+      : -1;
+
+    if (!user || idx < 0) {
       clearRefreshCookie(req, res);
-      throw new ApiError(401, "Invalid or expired refresh token");
+      const isStaff = user && (user.role === "admin" || user.role === "employee");
+      return next(new ApiError(
+        401,
+        isStaff ? "SESSION_REPLACED: signed in from another location" : "Invalid or expired refresh token",
+      ));
     }
 
-    // Single-session enforcement: if admin/employee logged in on another
-    // device after this refresh token was issued, activeSessionId will have
-    // rotated and this refresh attempt must fail with a recognisable code.
-    const isStaff = user.role === "admin" || user.role === "employee";
-    if (isStaff && user.activeSessionId && decoded.sid !== user.activeSessionId) {
-      clearRefreshCookie(req, res);
-      return next(new ApiError(401, "SESSION_REPLACED: signed in from another location"));
-    }
-
-    // Reuse the existing sid — refresh keeps the same session, doesn't fork it.
+    // Rotate this session's refresh token, keeping the same sid so the session
+    // continues rather than forking a new device slot.
     const { accessToken, refreshToken: newRefreshToken } = generateTokenPair(
-      user._id, user.role, decoded.sid || user.activeSessionId
+      user._id, user.role, decoded.sid,
     );
-    user.refreshToken = newRefreshToken;
+    user.sessions[idx].refreshToken = newRefreshToken;
+    user.sessions[idx].lastUsedAt = new Date();
+    user.markModified("sessions");
     await user.save({ validateBeforeSave: false });
 
     setRefreshCookie(req, res, newRefreshToken, user.role);
@@ -199,9 +225,18 @@ export const refreshToken = async (req, res, next) => {
 
 export const logout = async (req, res, next) => {
   try {
-    // Wipe the session pointer too — guarantees any leftover access token
-    // (admin/employee) immediately fails the sid check.
-    await User.findByIdAndUpdate(req.user._id, { refreshToken: null, activeSessionId: null });
+    // Log out just THIS device — pull only the session the current access
+    // token belongs to, leaving the user's other devices signed in. `protect`
+    // set req.sessionId from the token's sid. If for some reason it's absent
+    // (legacy token), fall back to clearing every session.
+    if (req.sessionId) {
+      await User.updateOne(
+        { _id: req.user._id },
+        { $pull: { sessions: { sessionId: req.sessionId } } },
+      );
+    } else {
+      await User.updateOne({ _id: req.user._id }, { $set: { sessions: [] } });
+    }
     clearRefreshCookie(req, res);
     res.json(new ApiResponse(200, null, "Logged out successfully"));
   } catch (err) {
@@ -253,7 +288,7 @@ export const resetPassword = async (req, res, next) => {
     user.password = password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpiry = undefined;
-    user.refreshToken = null;
+    user.sessions = []; // force re-login on every device after a password reset
     await user.save();
 
     res.json(new ApiResponse(200, null, "Password reset successful. Please log in."));
@@ -286,7 +321,7 @@ export const googleAuth = async (req, res, next) => {
     // originally signed up with email/password and are now linking Google).
     let user = await User.findOne({
       $or: [{ googleId: profile.googleId }, { email: profile.email }],
-    }).select("+refreshToken");
+    }).select("+sessions");
 
     if (user) {
       // Link Google if it wasn't linked before. Email coming from Google is
@@ -333,7 +368,7 @@ export const googleRegister = async (req, res, next) => {
     // googleRegister — fall back to logging them in.
     const existing = await User.findOne({
       $or: [{ googleId: profile.googleId }, { email: profile.email }],
-    }).select("+refreshToken");
+    }).select("+sessions");
     if (existing) {
       if (!existing.googleId) existing.googleId = profile.googleId;
       existing.emailVerified = true;

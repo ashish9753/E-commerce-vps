@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useOrders } from '../context/OrderContext';
 import { useToast } from '../context/ToastContext';
@@ -269,12 +269,14 @@ function StatusBadge({ status }) {
 
 export default function OrdersPage() {
   const navigate  = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user }  = useAuth();
   const { getMyOrders } = useOrders();
   const [orders, setOrders]       = useState([]);
   const [loading, setLoading]     = useState(true);
   const [filter, setFilter]       = useState('All Orders');
-  const [search, setSearch]       = useState('');
+  // Pre-fill from ?search=ORD-… so a notification link opens straight on that order.
+  const [search, setSearch]       = useState(() => searchParams.get('search') || '');
   const [reviewTarget, setReview] = useState(null); // { item, orderId }
   const [proofModal, setProofModal] = useState(null); // proof array to display
   const [paymentTimeoutMin, setPaymentTimeoutMin] = useState(DEFAULT_PAYMENT_TIMEOUT_MIN);
@@ -282,6 +284,13 @@ export default function OrdersPage() {
   const reloadOrders = () => getMyOrders({ limit: 50 }).then(r => {
     if (r.success) setOrders(r.data || r.orders || []);
   });
+
+  // Follow ?search= changes when navigating here from a notification while the
+  // page is already open (in-app link click, no full reload).
+  useEffect(() => {
+    const s = searchParams.get('search');
+    if (s != null) setSearch(s);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!user) { navigate('/login'); return; }

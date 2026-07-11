@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Trash2, Heart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -10,6 +10,7 @@ import FreebieDetailsModal from '../components/FreebieDetailsModal';
 
 export default function CartPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { items, updateQty, removeFromCart, removeFromCartNow, subtotal, discountAmount, deliveryCharge, total, finalPrice, applyCoupon, removeCoupon, cart, loading, syncCart, freebie, freeShipping } = useCart();
   const { toggle } = useWishlist();
   const { user } = useAuth();
@@ -26,7 +27,7 @@ export default function CartPage() {
         <div className="text-[80px]">🛒</div>
         <h3 className="text-2xl font-bold mt-4 mb-2">Sign in to view your cart</h3>
         <p className="text-mute mb-6">Your cart syncs across devices when you're signed in.</p>
-        <button className="btn btn-primary" onClick={() => navigate('/login')}>Sign In</button>
+        <button className="btn btn-primary" onClick={() => navigate('/login', { state: { from: location } })}>Sign In</button>
       </div>
     );
   }

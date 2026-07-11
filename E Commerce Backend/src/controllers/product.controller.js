@@ -170,7 +170,19 @@ export const getProducts = async (req, res, next) => {
       if (minPrice) exprConds.push({ $gte: [effectivePrice, parseFloat(minPrice)] });
       if (maxPrice) exprConds.push({ $lte: [effectivePrice, parseFloat(maxPrice)] });
     }
-    if (search) filter.$text = { $search: search };
+    if (search) {
+      // Case-insensitive partial match ("dumm" or "DUMMY" both find "Dummy")
+      // across the fields a shopper would search by. A regex $or is used
+      // instead of $text so it matches substrings, not just whole word tokens.
+      const term = search.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const rx = { $regex: term, $options: "i" };
+      filter.$or = [
+        { title: rx },
+        { brand: rx },
+        { tags: rx },
+        { description: rx },
+      ];
+    }
 
     if (exprConds.length) filter.$expr = exprConds.length === 1 ? exprConds[0] : { $and: exprConds };
 

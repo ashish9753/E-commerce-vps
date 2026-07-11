@@ -25,6 +25,7 @@ import { useCompare } from '../../context/CompareContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { productsApi } from '../../api/products';
 import { normalizeProducts } from '../../utils/normalizers';
+import { resolveNotificationLink } from '../../utils/notificationLink';
 import { formatPriceShort } from '../../utils/formatters';
 import { useCatalog, getCatEmoji } from '../../context/CatalogContext';
 import { categories as FALLBACK_CATS } from '../../data/categories';
@@ -111,9 +112,10 @@ function NotificationDropdown({ onClose }) {
             No notifications yet
           </div>
         ) : recent.map(n => {
+          const target = resolveNotificationLink(n);
           const handleOpen = () => {
             if (!n.isRead) markRead(n._id);
-            if (n.link) navigate(n.link);
+            if (target) navigate(target);
             onClose();
           };
           return (
@@ -137,7 +139,7 @@ function NotificationDropdown({ onClose }) {
                 {/* Link button */}
                 {n.link && (
                   <a
-                    href={n.link.startsWith('http') ? n.link : `${window.location.origin}${n.link}`}
+                    href={target.startsWith('http') ? target : `${window.location.origin}${target}`}
                     target="_blank" rel="noopener noreferrer"
                     onClick={() => { if (!n.isRead) markRead(n._id); onClose(); }}
                     style={{ display:'inline-flex', alignItems:'center', gap:5, marginTop:7, padding:'5px 10px',
@@ -215,6 +217,10 @@ export default function Header() {
   const searchRef = useRef(null);
   const bellRef   = useRef(null);
   const lastScrollY = useRef(0);
+  const searchTimer = useRef(null);
+  // Wait this long after the user stops typing before hitting the API, so we
+  // don't fire a request on every keystroke.
+  const SEARCH_DEBOUNCE_MS = 450;
 
   useEffect(() => {
     const handler = (e) => {
@@ -222,7 +228,10 @@ export default function Header() {
       if (!bellRef.current?.contains(e.target)) setShowNotifs(false);
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -250,18 +259,24 @@ export default function Header() {
   const handleSearch = (e) => {
     const q = e.target.value;
     setQuery(q);
-    if (q.trim().length > 1) {
-      productsApi.getAll({ search: q.trim(), limit: 6 })
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const term = q.trim();
+    if (term.length < 2) {
+      setShowResults(false);
+      setResults([]);
+      return;
+    }
+    // Debounce: only query once the user pauses typing. The backend matches
+    // case-insensitively and on partial words, so "dum" and "DUMMY" both hit.
+    searchTimer.current = setTimeout(() => {
+      productsApi.getAll({ search: term, limit: 6 })
         .then(({ data }) => {
           const prods = normalizeProducts(data.data?.products || data.data?.data || []);
           setResults(prods);
           setShowResults(prods.length > 0);
         })
         .catch(() => setResults([]));
-    } else {
-      setShowResults(false);
-      setResults([]);
-    }
+    }, SEARCH_DEBOUNCE_MS);
   };
 
   const handleSearchSubmit = (e) => {

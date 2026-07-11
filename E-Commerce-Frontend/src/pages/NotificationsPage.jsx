@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
+import { resolveNotificationLink } from '../utils/notificationLink';
 
 const TYPE_ICON  = { ORDER:'📦', PAYMENT:'💳', OFFER:'🎁', REFUND:'↩️', SYSTEM:'🔔' };
 const TYPE_COLOR = { ORDER:'#3b82f6', PAYMENT:'#8b5cf6', OFFER:'#f59e0b', REFUND:'#22c55e', SYSTEM:'#6b7280' };
@@ -122,9 +123,9 @@ export default function NotificationsPage() {
                     {n.couponCode && <CopyButton code={n.couponCode} />}
 
                     {/* Clickable link */}
-                    {n.link && (
+                    {n.link && (() => { const target = resolveNotificationLink(n); return (
                       <a
-                        href={n.link.startsWith('http') ? n.link : `${window.location.origin}${n.link}`}
+                        href={target.startsWith('http') ? target : `${window.location.origin}${target}`}
                         target="_blank" rel="noopener noreferrer"
                         onClick={e => { e.stopPropagation(); if (!n.isRead) markRead(n._id); }}
                         style={{ display:'inline-flex', alignItems:'center', gap:6, marginTop:8,
@@ -132,7 +133,7 @@ export default function NotificationsPage() {
                           fontSize:13, fontWeight:700, color:'#1d4ed8', cursor:'pointer', textDecoration:'none' }}>
                         🔗 Click here ↗
                       </a>
-                    )}
+                    ); })()}
 
                     <div style={{ fontSize:11, color:'#9ca3af', marginTop:8 }}>
                       {new Date(n.createdAt).toLocaleString('en-IN', { day:'numeric', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })}
