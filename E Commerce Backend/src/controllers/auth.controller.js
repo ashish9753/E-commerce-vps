@@ -185,15 +185,28 @@ export const refreshToken = async (req, res, next) => {
     const decoded = verifyRefreshToken(token);
     const user = await User.findById(decoded._id).select("+sessions");
 
-    // The session must still exist AND still hold this exact refresh token
-    // (tokens rotate on every refresh, so a replayed old token won't match).
-    // A missing session means it was revoked: staff single-session takeover,
-    // device-cap eviction, logout, or password reset.
+    // Locate the device session by its sid. A missing session means it was
+    // revoked: staff single-session takeover, device-cap eviction, logout, or
+    // password reset.
     const idx = Array.isArray(user?.sessions)
-      ? user.sessions.findIndex((s) => s.sessionId === decoded.sid && s.refreshToken === token)
+      ? user.sessions.findIndex((s) => s.sessionId === decoded.sid)
       : -1;
 
-    if (!user || idx < 0) {
+    // Refresh tokens rotate on every use, so a request must present either the
+    // session's CURRENT token or — within a short grace window — the token that
+    // was rotated out on the very last refresh. The grace window absorbs the
+    // classic rotation race: two tabs (or a retried request) refreshing at
+    // nearly the same instant would otherwise leave one holding a just-rotated
+    // token and get the whole session wrongly invalidated.
+    const ROTATION_GRACE_MS = 60 * 1000;
+    const session = idx >= 0 ? user.sessions[idx] : null;
+    const matchesCurrent = session && session.refreshToken === token;
+    const matchesPrevInGrace = session
+      && session.prevRefreshToken === token
+      && session.prevRefreshAt
+      && Date.now() - new Date(session.prevRefreshAt).getTime() < ROTATION_GRACE_MS;
+
+    if (!user || idx < 0 || (!matchesCurrent && !matchesPrevInGrace)) {
       clearRefreshCookie(req, res);
       const isStaff = user && (user.role === "admin" || user.role === "employee");
       return next(new ApiError(
@@ -202,17 +215,27 @@ export const refreshToken = async (req, res, next) => {
       ));
     }
 
-    // Rotate this session's refresh token, keeping the same sid so the session
-    // continues rather than forking a new device slot.
-    const { accessToken, refreshToken: newRefreshToken } = generateTokenPair(
-      user._id, user.role, decoded.sid,
-    );
-    user.sessions[idx].refreshToken = newRefreshToken;
-    user.sessions[idx].lastUsedAt = new Date();
-    user.markModified("sessions");
-    await user.save({ validateBeforeSave: false });
+    if (matchesCurrent) {
+      // Normal path — rotate the token, remembering the old one for the grace
+      // window, keeping the same sid so the session continues.
+      const { accessToken, refreshToken: newRefreshToken } = generateTokenPair(
+        user._id, user.role, decoded.sid,
+      );
+      session.prevRefreshToken = session.refreshToken;
+      session.prevRefreshAt = new Date();
+      session.refreshToken = newRefreshToken;
+      session.lastUsedAt = new Date();
+      user.markModified("sessions");
+      await user.save({ validateBeforeSave: false });
+      setRefreshCookie(req, res, newRefreshToken, user.role);
+      return res.json(new ApiResponse(200, { accessToken }, "Tokens refreshed"));
+    }
 
-    setRefreshCookie(req, res, newRefreshToken, user.role);
+    // Grace path — a racing duplicate presented the just-rotated token. Don't
+    // rotate again (that would cascade); re-issue a fresh access token and
+    // re-affirm the current refresh cookie so this request also succeeds.
+    const accessToken = generateTokenPair(user._id, user.role, decoded.sid).accessToken;
+    setRefreshCookie(req, res, session.refreshToken, user.role);
     res.json(new ApiResponse(200, { accessToken }, "Tokens refreshed"));
   } catch (err) {
     if (err.name === "JsonWebTokenError" || err.name === "TokenExpiredError") {

@@ -23,6 +23,11 @@ const addressSchema = new mongoose.Schema({
 const sessionSchema = new mongoose.Schema({
   sessionId:    { type: String, required: true },
   refreshToken: { type: String, required: true },
+  // The immediately-previous refresh token, kept briefly after a rotation so
+  // two requests that race on refresh (e.g. two open tabs, or a retried
+  // request) don't invalidate an otherwise-valid session. See refreshToken().
+  prevRefreshToken: { type: String, default: null },
+  prevRefreshAt:    { type: Date, default: null },
   userAgent:    { type: String, default: "" },
   createdAt:    { type: Date, default: Date.now },
   lastUsedAt:   { type: Date, default: Date.now },

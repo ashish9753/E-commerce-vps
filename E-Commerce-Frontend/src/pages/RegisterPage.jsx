@@ -13,13 +13,16 @@ const PERKS = [
   { icon: <Headphones size={15} />, text: 'Priority customer support 24/7' },
 ];
 
-function InputField({ label, name, type = 'text', placeholder, value, error, onChange, onFocus, onBlur, right }) {
+function InputField({ label, name, type = 'text', placeholder, value, error, onChange, onFocus, onBlur, right, autoComplete }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#333', marginBottom: 5 }}>{label}</label>
+      <label htmlFor={name} style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#333', marginBottom: 5 }}>{label}</label>
       <div style={{ position: 'relative' }}>
         <input
           type={type}
+          id={name}
+          name={name}
+          autoComplete={autoComplete}
           placeholder={placeholder}
           value={value}
           onChange={e => onChange(name, e.target.value)}
@@ -282,6 +285,7 @@ export default function RegisterPage() {
               <div style={{ position: 'relative' }}>
                 <input
                   type="email" readOnly disabled
+                  id="email" name="email" autoComplete="username"
                   value={pendingGoogle?.profile?.email || ''}
                   placeholder="Click 'Sign up with Google' above to verify"
                   style={{
@@ -301,11 +305,13 @@ export default function RegisterPage() {
             <InputField label="Password" name="password" type={showPw ? 'text' : 'password'}
               placeholder="Min. 8 chars, 1 uppercase, 1 number"
               value={form.password} error={errors.password} onChange={set}
+              autoComplete="new-password"
               right={eyeBtn(showPw, () => setShowPw(s => !s))} />
 
             <InputField label="Confirm Password" name="confirm" type={showCp ? 'text' : 'password'}
               placeholder="Re-enter your password"
               value={form.confirm} error={errors.confirm} onChange={set}
+              autoComplete="new-password"
               right={eyeBtn(showCp, () => setShowCp(s => !s))} />
 
             {/* Password hint */}

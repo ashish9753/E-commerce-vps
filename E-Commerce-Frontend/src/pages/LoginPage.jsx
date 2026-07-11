@@ -174,10 +174,14 @@ export default function LoginPage() {
               </label>
               <input
                 type="email"
+                id="email"
+                name="email"
                 placeholder="you@example.com"
                 value={form.email}
                 onChange={e => set('email', e.target.value)}
-                autoComplete="email"
+                // `username` is the canonical login-identifier token the browser
+                // pairs with the password so it offers to save + autofill it.
+                autoComplete="username"
                 style={{
                   width: '100%', height: 44, padding: '0 14px',
                   border: `1.5px solid ${errors.email ? '#e53935' : '#e0e0e0'}`,
@@ -203,6 +207,8 @@ export default function LoginPage() {
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPw ? 'text' : 'password'}
+                  id="password"
+                  name="password"
                   placeholder="Enter your password"
                   value={form.password}
                   onChange={e => set('password', e.target.value)}

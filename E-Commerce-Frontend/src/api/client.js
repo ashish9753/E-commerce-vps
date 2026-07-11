@@ -121,9 +121,23 @@ client.interceptors.response.use(
         return client(original);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        // A stale request can fail after the user has already logged in again.
-        // Only clear auth if the token that failed is still the active token.
-        if (!originalToken || localStorage.getItem('accessToken') === originalToken) {
+        // Only sign the user out when the refresh was *definitively* rejected —
+        // the server answered 401/403, meaning the refresh session is genuinely
+        // gone (logout elsewhere, password reset, staff single-session takeover).
+        //
+        // A refresh can also fail transiently: no response at all (flaky mobile
+        // network, request timeout) or a 5xx while the backend cold-starts. In
+        // those cases the session is still valid server-side, so we must NOT
+        // kick the user to /login — we keep them signed in and let the next
+        // action retry. This transient case (amplified by the short access-token
+        // lifetime) was the main reason users were bounced to login "after some
+        // time", especially on phones.
+        const rStatus = refreshError.response?.status;
+        const definitiveAuthFailure = rStatus === 401 || rStatus === 403;
+        // A stale request can also fail after the user has already logged in
+        // again — only touch auth if the token that failed is still the active one.
+        const stillActiveToken = !originalToken || localStorage.getItem('accessToken') === originalToken;
+        if (definitiveAuthFailure && stillActiveToken) {
           localStorage.removeItem('accessToken');
           window.dispatchEvent(new CustomEvent('auth:logout', {
             detail: { token: originalToken },
