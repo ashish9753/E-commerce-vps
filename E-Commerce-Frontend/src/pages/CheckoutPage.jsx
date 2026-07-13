@@ -661,7 +661,7 @@ export default function CheckoutPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
         }}>
           <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 560, boxShadow: '0 20px 60px rgba(0,0,0,.3)', overflow: 'hidden' }}>
-            <div style={{ background: pendingPayment.purpose === 'booking' ? '#f59e0b' : '#e2117b', padding: '16px 22px' }}>
+            <div style={{ background: pendingPayment.purpose === 'booking' ? '#f59e0b' : '#2563eb', padding: '16px 22px' }}>
               <div style={{ color: 'white', fontWeight: 800, fontSize: 17 }}>
                 {pendingPayment.purpose === 'booking' ? 'Pay your booking advance' : 'Complete your payment'}
               </div>
@@ -674,7 +674,7 @@ export default function CheckoutPage() {
                 orderId={pendingPayment.orderId}
                 purpose={pendingPayment.purpose}
                 amount={pendingPayment.amount}
-                accent={pendingPayment.purpose === 'booking' ? '#f59e0b' : '#e2117b'}
+                accent={pendingPayment.purpose === 'booking' ? '#f59e0b' : '#2563eb'}
                 onSuccess={handlePaymentSuccess}
                 onCancel={handlePaymentLater}
               />

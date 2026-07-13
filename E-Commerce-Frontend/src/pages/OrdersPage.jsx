@@ -64,9 +64,9 @@ function PendingPaymentBanner({ order, timeoutMin, purpose = 'full', onPaid, onC
     }
   };
 
-  const accent = isBooking ? '#f59e0b' : '#e2117b';
-  const bg     = isBooking ? '#fffbeb' : '#fff1f7';
-  const border = isBooking ? '#fde68a' : '#fbcfe8';
+  const accent = isBooking ? '#f59e0b' : '#2563eb';
+  const bg     = isBooking ? '#fffbeb' : '#eff6ff';
+  const border = isBooking ? '#fde68a' : '#bfdbfe';
 
   return (
     <div style={{ borderTop: `1px solid ${border}`, background: bg, padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>

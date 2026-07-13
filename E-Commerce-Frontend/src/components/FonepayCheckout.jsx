@@ -19,11 +19,15 @@ const DEFAULT_TTL_SEC = 300; // QR stays active for 5 minutes, then auto-expires
 
 const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
+// The QR theme turns urgent-red once this little time is left before it expires.
+const LOW_TIME_SEC = 60;
+const URGENT_COLOR = '#dc2626'; // red — final minute warning
+
 export default function FonepayCheckout({
   orderId,
   purpose = 'full',
   amount,
-  accent = '#e2117b',
+  accent = '#2563eb',
   ttlSeconds = DEFAULT_TTL_SEC,
   onSuccess,
   onCancel,
@@ -126,6 +130,9 @@ export default function FonepayCheckout({
   }, [phase, checkStatus]);
 
   const payAmount = qr?.amount ?? amount;
+  // Cool blue while there's plenty of time, switching to red in the final minute
+  // so the whole QR panel signals urgency as it's about to expire.
+  const liveAccent = remaining <= LOW_TIME_SEC ? URGENT_COLOR : accent;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -158,18 +165,18 @@ export default function FonepayCheckout({
                 Scan &amp; pay with Fonepay
               </div>
               {payAmount > 0 && (
-                <div style={{ fontSize: 30, fontWeight: 900, color: accent, margin: '2px 0 8px' }}>{formatPriceShort(payAmount)}</div>
+                <div style={{ fontSize: 30, fontWeight: 900, color: liveAccent, margin: '2px 0 8px' }}>{formatPriceShort(payAmount)}</div>
               )}
               <ol style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: '#444', lineHeight: 1.7 }}>
                 <li>Open Fonepay or any mobile banking / wallet app.</li>
                 <li>Scan this QR and pay the exact amount.</li>
                 <li>Keep this page open — it confirms automatically.</li>
               </ol>
-              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, color: accent, fontWeight: 700, fontSize: 13 }}>
-                <span className="fonepay-pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: accent, display: 'inline-block' }} />
+              <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, color: liveAccent, fontWeight: 700, fontSize: 13 }}>
+                <span className="fonepay-pulse" style={{ width: 10, height: 10, borderRadius: '50%', background: liveAccent, display: 'inline-block' }} />
                 Waiting for your payment…
               </div>
-              <div style={{ marginTop: 8, fontSize: 13, fontWeight: 700, color: remaining <= 60 ? '#dc2626' : '#6b7280' }}>
+              <div style={{ marginTop: 8, fontSize: 13, fontWeight: 700, color: remaining <= LOW_TIME_SEC ? URGENT_COLOR : '#6b7280' }}>
                 ⏱ QR expires in {mmss(remaining)}
               </div>
             </div>
@@ -177,7 +184,7 @@ export default function FonepayCheckout({
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <button onClick={checkStatus}
-              style={{ flex: 1, minWidth: 140, padding: '10px 16px', border: `1px solid ${accent}`, background: 'white', color: accent, borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
+              style={{ flex: 1, minWidth: 140, padding: '10px 16px', border: `1px solid ${liveAccent}`, background: 'white', color: liveAccent, borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
               I&apos;ve paid — check now
             </button>
             {onCancel && (
