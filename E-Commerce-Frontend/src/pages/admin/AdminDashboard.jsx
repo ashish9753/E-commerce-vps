@@ -3669,9 +3669,16 @@ function AdminSettingsTab() {
   const numVal = v => v === 0 ? '' : v;
   const numChg = (k) => (e) => set(k, e.target.value === '' ? 0 : Number(e.target.value));
 
+  // Two settings cards sit side-by-side; a third wraps onto the next row,
+  // landing directly under the first (fixed half-width, doesn't stretch).
+  const settingsCard = {
+    background: C.card, borderRadius: 12, border: `1px solid ${C.line}`, overflow: 'hidden',
+    flexGrow: 0, flexShrink: 1, flexBasis: 'calc(50% - 9px)', minWidth: 320,
+  };
+
   return (
-    <div style={{ maxWidth: 620 }}>
-      <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.line}`, overflow: 'hidden' }}>
+    <div style={{ maxWidth: 1000, display: 'flex', flexWrap: 'wrap', gap: 18, alignItems: 'flex-start' }}>
+      <div style={settingsCard}>
 
         {/* ── Row: Order limits ── */}
         <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.line}` }}>
@@ -3751,7 +3758,7 @@ function AdminSettingsTab() {
       </div>
 
       {/* ══ Delivery Charge Settings ══ */}
-      <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.line}`, overflow: 'hidden', marginTop: 18 }}>
+      <div style={settingsCard}>
 
         {/* Header */}
         <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.line}` }}>
@@ -3818,7 +3825,7 @@ function AdminSettingsTab() {
       </div>
 
       {/* ── Pickup from Shop ── */}
-      <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.line}`, overflow: 'hidden', marginTop: 16 }}>
+      <div style={settingsCard}>
         <div style={{ padding: '18px 22px', borderBottom: `1px solid ${C.line}`, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 14, color: C.text }}>Pickup from Shop</div>
