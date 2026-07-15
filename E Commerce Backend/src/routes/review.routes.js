@@ -11,7 +11,7 @@ router.get("/product/:productId", getProductReviews);
 
 router.use(protect);
 router.post("/", uploadMultiple("images", 2), createReview);
-router.patch("/:reviewId", updateReview);
+router.patch("/:reviewId", uploadMultiple("images", 2), updateReview);
 router.delete("/:reviewId", deleteReview);
 
 export default router;

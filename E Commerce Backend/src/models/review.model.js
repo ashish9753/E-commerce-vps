@@ -13,6 +13,7 @@ const reviewSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-reviewSchema.index({ user: 1, product: 1 }, { unique: true });
+// Non-unique: a customer may leave more than one review for the same product.
+reviewSchema.index({ user: 1, product: 1 });
 
 export default mongoose.model("Review", reviewSchema);

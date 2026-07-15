@@ -70,6 +70,7 @@ export default function ProductDetailPage() {
     });
   };
   const [activeThumb, setActiveThumb] = useState(0);
+  const [aboutExpanded, setAboutExpanded] = useState(false); // "About this item" read more/less
   const [selectedColor, setSelectedColor] = useState(''); // chosen color name ('' = none yet)
   const swipeStartX = useRef(null); // tracks touch start X for mobile gallery swipe
   const [location, setLocation]           = useState('');
@@ -95,7 +96,17 @@ export default function ProductDetailPage() {
   const [reviewComment, setReviewComment]     = useState('');
   const [reviewImages, setReviewImages]       = useState([]);
   const [reviewLoading, setReviewLoading]     = useState(false);
-  const [alreadyReviewed, setAlreadyReviewed] = useState(false);
+
+  // Inline edit state — a review is editable by its author for 30 min after posting.
+  const [editingId, setEditingId]         = useState(null);
+  const [editRating, setEditRating]       = useState(0);
+  const [editHover, setEditHover]         = useState(0);
+  const [editComment, setEditComment]     = useState('');
+  const [editExistingImages, setEditExistingImages] = useState([]); // kept URLs
+  const [editNewImages, setEditNewImages] = useState([]);           // newly added File[]
+  const [editLoading, setEditLoading]     = useState(false);
+  // Ticks every 30s so the "Edit" affordance disappears once the window lapses.
+  const [nowTs, setNowTs]                 = useState(Date.now());
 
   // Delivery check — looks up the typed city in the merged suggestions list
   // (Upaya + custom DeliveryAreas), then falls back to a server-side check
@@ -222,6 +233,12 @@ export default function ProductDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, areaSuggestions]);
 
+  // Keep "editable within 30 min" affordances fresh without a page reload.
+  useEffect(() => {
+    const id = setInterval(() => setNowTs(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     setLoading(true);
     productsApi.getById(id)
@@ -257,9 +274,6 @@ export default function ProductDetailPage() {
           .then(({ data: rData }) => {
             const list = rData.data?.data || rData.data?.reviews || [];
             setReviews(list);
-            if (user) {
-              setAlreadyReviewed(list.some(r => r.user?._id === user._id || r.user === user._id));
-            }
           })
           .catch(() => {});
       })
@@ -445,6 +459,60 @@ export default function ProductDetailPage() {
 
   const removeReviewImage = (i) => setReviewImages(prev => prev.filter((_, idx) => idx !== i));
 
+  // ── Review editing (30-minute window) ──────────────────────────────
+  const EDIT_WINDOW_MS = 30 * 60 * 1000;
+  const ownsReview = (r) =>
+    !!user && (r.user?._id === user._id || r.user === user._id);
+  const canEditReview = (r) =>
+    ownsReview(r) && (nowTs - new Date(r.createdAt).getTime()) < EDIT_WINDOW_MS;
+
+  const startEditReview = (r) => {
+    setEditingId(r._id);
+    setEditRating(r.rating);
+    setEditHover(0);
+    setEditComment(r.comment || '');
+    setEditExistingImages([...(r.images || [])]);
+    setEditNewImages([]);
+  };
+  const cancelEditReview = () => {
+    setEditingId(null);
+    setEditNewImages([]);
+    setEditExistingImages([]);
+  };
+  const removeEditExistingImage = (url) =>
+    setEditExistingImages(prev => prev.filter(u => u !== url));
+  const removeEditNewImage = (i) =>
+    setEditNewImages(prev => prev.filter((_, idx) => idx !== i));
+  const handleEditImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    setEditNewImages(prev => {
+      const remaining = 2 - (editExistingImages.length + prev.length);
+      return [...prev, ...files.slice(0, Math.max(0, remaining))];
+    });
+    e.target.value = '';
+  };
+
+  const handleEditSubmit = async (reviewId) => {
+    if (!editRating) { toast('Please select a rating', 'error'); return; }
+    setEditLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('rating', editRating);
+      fd.append('comment', editComment.trim());
+      fd.append('existingImages', JSON.stringify(editExistingImages));
+      editNewImages.forEach(f => fd.append('images', f));
+      const { data } = await reviewsApi.update(reviewId, fd);
+      const updated = data.data?.review;
+      if (updated) setReviews(prev => prev.map(r => r._id === reviewId ? updated : r));
+      cancelEditReview();
+      toast('Review updated');
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to update review', 'error');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
     if (!reviewRating) { toast('Please select a rating', 'error'); return; }
@@ -462,7 +530,6 @@ export default function ProductDetailPage() {
       setReviewHover(0);
       setReviewComment('');
       setReviewImages([]);
-      setAlreadyReviewed(true);
       toast('Review submitted successfully!');
     } catch (err) {
       toast(err.response?.data?.message || 'Failed to submit review', 'error');
@@ -752,10 +819,17 @@ export default function ProductDetailPage() {
               <div style={{ marginBottom:16 }}>
                 <div style={{ fontSize:18, fontWeight:700, color:'#0F1111', marginBottom:10 }}>About this item</div>
                 <ul style={{ margin:0, paddingLeft:20, display:'flex', flexDirection:'column', gap:6 }}>
-                  {descLines.map((line, i) => (
+                  {(aboutExpanded ? descLines : descLines.slice(0, 4)).map((line, i) => (
                     <li key={i} style={{ fontSize:13, color:'#333', lineHeight:1.6 }}>{line}</li>
                   ))}
                 </ul>
+                {descLines.length > 4 && (
+                  <button onClick={() => setAboutExpanded(v => !v)}
+                    style={{ marginTop:8, padding:0, background:'none', border:'none',
+                      color:'#007185', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                    {aboutExpanded ? 'Read less ▲' : 'Read more ▼'}
+                  </button>
+                )}
               </div>
             )}
 
@@ -805,8 +879,21 @@ export default function ProductDetailPage() {
               )}
 
               {activeTab === 'description' && (
-                <div style={{ fontSize:13, lineHeight:1.8, color:'#333' }}>
-                  {product.description || 'No description available.'}
+                <div>
+                  <div style={{ fontSize:13, lineHeight:1.8, color:'#333',
+                    ...(aboutExpanded ? {} : {
+                      display:'-webkit-box', WebkitLineClamp:4, WebkitBoxOrient:'vertical',
+                      overflow:'hidden',
+                    }) }}>
+                    {product.description || 'No description available.'}
+                  </div>
+                  {(product.description || '').length > 220 && (
+                    <button onClick={() => setAboutExpanded(v => !v)}
+                      style={{ marginTop:8, padding:0, background:'none', border:'none',
+                        color:'#007185', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                      {aboutExpanded ? 'Read less ▲' : 'Read more ▼'}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1083,12 +1170,6 @@ export default function ProductDetailPage() {
 
           {/* Write a Review */}
           {user ? (
-            alreadyReviewed ? (
-              <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8,
-                padding:'12px 16px', marginBottom:24, fontSize:13, color:'#166534' }}>
-                ✓ You have already submitted a review for this product.
-              </div>
-            ) : (
               <form onSubmit={handleReviewSubmit}
                 style={{ background:'#fafafa', border:'1px solid #e7e7e7', borderRadius:8, padding:20, marginBottom:32 }}>
                 <div style={{ fontSize:16, fontWeight:700, color:'#0F1111', marginBottom:16 }}>Write a Review</div>
@@ -1168,7 +1249,6 @@ export default function ProductDetailPage() {
                   {reviewLoading ? 'Submitting...' : 'Submit Review'}
                 </button>
               </form>
-            )
           ) : (
             <div style={{ background:'#fff8f1', border:'1px solid #fed7aa', borderRadius:8,
               padding:'12px 16px', marginBottom:24, fontSize:13, color:'#9a3412' }}>
@@ -1209,7 +1289,7 @@ export default function ProductDetailPage() {
               {/* Review list */}
               <div>
                 {reviews.map((r, i) => (
-                  <div key={i} style={{ borderBottom:'1px solid #f0f0f0', paddingBottom:20, marginBottom:20 }}>
+                  <div key={r._id || i} style={{ borderBottom:'1px solid #f0f0f0', paddingBottom:20, marginBottom:20 }}>
                     <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:6 }}>
                       <div style={{ width:36, height:36, borderRadius:'50%', background:'#FF5A1F', color:'white',
                         display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:15, flexShrink:0 }}>
@@ -1217,26 +1297,102 @@ export default function ProductDetailPage() {
                       </div>
                       <span style={{ fontWeight:700, fontSize:14, color:'#0F1111' }}>{r.user?.name||'Customer'}</span>
                     </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
-                      <span style={{ color:'#FF5A1F', fontSize:16 }}>{stars(r.rating)}</span>
-                      {r.isVerifiedPurchase && (
-                        <span style={{ fontSize:11, fontWeight:700, color:'#007600', background:'#e6f4ea', padding:'2px 8px', borderRadius:99 }}>
-                          ✓ Verified Purchase
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize:12, color:'#999', marginBottom:8 }}>
-                      Reviewed on {new Date(r.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })}
-                    </div>
-                    {r.comment && <p style={{ margin:0, fontSize:14, color:'#333', lineHeight:1.7 }}>{r.comment}</p>}
-                    {r.images?.length > 0 && (
-                      <div style={{ display:'flex', gap:8, marginTop:10 }}>
-                        {r.images.map((img, j) => (
-                          <img key={j} src={img} alt=""
-                            style={{ width:70, height:70, objectFit:'cover', borderRadius:6, border:'1px solid #eee', cursor:'pointer' }}
-                            onClick={() => window.open(img, '_blank')} />
-                        ))}
+
+                    {editingId === r._id ? (
+                      /* ── Inline edit form ── */
+                      <div style={{ background:'#fafafa', border:'1px solid #e7e7e7', borderRadius:8, padding:16, marginTop:8 }}>
+                        <div style={{ display:'flex', gap:4, marginBottom:12 }}>
+                          {[1,2,3,4,5].map(n => (
+                            <span key={n}
+                              onClick={() => setEditRating(n)}
+                              onMouseEnter={() => setEditHover(n)}
+                              onMouseLeave={() => setEditHover(0)}
+                              style={{ fontSize:30, cursor:'pointer', lineHeight:1, userSelect:'none',
+                                color:(editHover||editRating) >= n ? '#FF5A1F' : '#d1d5db' }}>★</span>
+                          ))}
+                        </div>
+                        <textarea value={editComment} onChange={e => setEditComment(e.target.value)}
+                          rows={3}
+                          style={{ width:'100%', border:'1px solid #ddd', borderRadius:6, padding:'10px 12px',
+                            fontSize:13, resize:'vertical', fontFamily:'inherit', outline:'none', boxSizing:'border-box', marginBottom:12 }} />
+
+                        {/* Existing + new photos with remove buttons */}
+                        {(editExistingImages.length > 0 || editNewImages.length > 0) && (
+                          <div style={{ display:'flex', gap:10, marginBottom:10, flexWrap:'wrap' }}>
+                            {editExistingImages.map((url, j) => (
+                              <div key={`e-${j}`} style={{ position:'relative', width:72, height:72 }}>
+                                <img src={url} alt="" style={{ width:72, height:72, objectFit:'cover', borderRadius:6, border:'1px solid #ddd' }} />
+                                <button type="button" onClick={() => removeEditExistingImage(url)}
+                                  style={{ position:'absolute', top:-6, right:-6, width:20, height:20, borderRadius:'50%',
+                                    background:'#CC0C39', color:'white', border:'none', cursor:'pointer', fontSize:14,
+                                    display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>×</button>
+                              </div>
+                            ))}
+                            {editNewImages.map((f, j) => (
+                              <div key={`n-${j}`} style={{ position:'relative', width:72, height:72 }}>
+                                <img src={URL.createObjectURL(f)} alt="" style={{ width:72, height:72, objectFit:'cover', borderRadius:6, border:'1px solid #ddd' }} />
+                                <button type="button" onClick={() => removeEditNewImage(j)}
+                                  style={{ position:'absolute', top:-6, right:-6, width:20, height:20, borderRadius:'50%',
+                                    background:'#CC0C39', color:'white', border:'none', cursor:'pointer', fontSize:14,
+                                    display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>×</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(editExistingImages.length + editNewImages.length) < 2 && (
+                          <label style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'6px 12px',
+                            border:'1px dashed #aaa', borderRadius:6, cursor:'pointer', fontSize:12, color:'#555', marginBottom:12 }}>
+                            <span>+ Add Photo</span>
+                            <input type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
+                              onChange={handleEditImageChange} style={{ display:'none' }} multiple />
+                          </label>
+                        )}
+
+                        <div style={{ display:'flex', gap:8, marginTop:4 }}>
+                          <button type="button" onClick={() => handleEditSubmit(r._id)} disabled={editLoading}
+                            style={{ padding:'8px 20px', borderRadius:6, border:'none', background:'#FF5A1F',
+                              color:'white', fontWeight:700, fontSize:13, cursor:'pointer' }}>
+                            {editLoading ? 'Saving...' : 'Save Changes'}
+                          </button>
+                          <button type="button" onClick={cancelEditReview} disabled={editLoading}
+                            style={{ padding:'8px 20px', borderRadius:6, border:'1px solid #ddd', background:'white',
+                              color:'#555', fontWeight:600, fontSize:13, cursor:'pointer' }}>
+                            Cancel
+                          </button>
+                        </div>
                       </div>
+                    ) : (
+                      /* ── Display mode ── */
+                      <>
+                        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:4 }}>
+                          <span style={{ color:'#FF5A1F', fontSize:16 }}>{stars(r.rating)}</span>
+                          {r.isVerifiedPurchase && (
+                            <span style={{ fontSize:11, fontWeight:700, color:'#007600', background:'#e6f4ea', padding:'2px 8px', borderRadius:99 }}>
+                              ✓ Verified Purchase
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize:12, color:'#999', marginBottom:8 }}>
+                          Reviewed on {new Date(r.createdAt).toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })}
+                        </div>
+                        {r.comment && <p style={{ margin:0, fontSize:14, color:'#333', lineHeight:1.7 }}>{r.comment}</p>}
+                        {r.images?.length > 0 && (
+                          <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                            {r.images.map((img, j) => (
+                              <img key={j} src={img} alt=""
+                                style={{ width:70, height:70, objectFit:'cover', borderRadius:6, border:'1px solid #eee', cursor:'pointer' }}
+                                onClick={() => window.open(img, '_blank')} />
+                            ))}
+                          </div>
+                        )}
+                        {canEditReview(r) && (
+                          <button type="button" onClick={() => startEditReview(r)}
+                            style={{ marginTop:10, padding:0, background:'none', border:'none',
+                              color:'#007185', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                            Edit review
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 ))}

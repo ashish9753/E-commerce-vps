@@ -5,6 +5,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import app, { ALLOWED_ORIGINS } from "./src/app.js";
 import connectDB from "./src/config/db.js";
+import Review from "./src/models/review.model.js";
 import { initChatSocket } from "./src/sockets/chat.socket.js";
 import { startOrderTimeoutJob } from "./src/jobs/orderTimeout.job.js";
 
@@ -27,7 +28,15 @@ const io = new Server(httpServer, {
 
 initChatSocket(io);
 
-connectDB().then(() => {
+connectDB().then(async () => {
+  // Reconcile Review indexes so the legacy unique {user, product} index is
+  // dropped — customers are now allowed to leave more than one review.
+  try {
+    await Review.syncIndexes();
+  } catch (e) {
+    console.warn("[startup] Review.syncIndexes failed:", e.message);
+  }
+
   httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
     if (process.env.SKIP_QUEUE === "true") {

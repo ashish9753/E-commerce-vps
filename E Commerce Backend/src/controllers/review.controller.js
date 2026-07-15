@@ -1,10 +1,29 @@
 import Review from "../models/review.model.js";
 import Product from "../models/product.model.js";
 import Order from "../models/order.model.js";
-import { uploadToCloudinary } from "../utils/cloudinary.utils.js";
+import { uploadToCloudinary, deleteFromCloudinary, getPublicIdFromUrl } from "../utils/cloudinary.utils.js";
 import { getPaginationData, buildPaginatedResponse } from "../utils/pagination.utils.js";
 import ApiError from "../utils/ApiError.js";
 import ApiResponse from "../utils/ApiResponse.js";
+
+// A review may only be edited within this window after it was posted.
+const EDIT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+
+// Best-effort removal of review images from Cloudinary so deleted/removed
+// photos don't keep consuming storage.
+const removeImagesFromCloudinary = async (urls = []) => {
+  await Promise.all(
+    urls.map(async (url) => {
+      const publicId = getPublicIdFromUrl(url);
+      if (!publicId) return;
+      try {
+        await deleteFromCloudinary(publicId);
+      } catch (e) {
+        console.warn("[reviews] failed to delete image from Cloudinary:", e.message);
+      }
+    })
+  );
+};
 
 export const createReview = async (req, res, next) => {
   try {
@@ -12,8 +31,8 @@ export const createReview = async (req, res, next) => {
     if (!productId || !rating) throw new ApiError(400, "productId and rating are required");
     if (rating < 1 || rating > 5) throw new ApiError(400, "Rating must be between 1 and 5");
 
-    const existing = await Review.findOne({ user: req.user._id, product: productId });
-    if (existing) throw new ApiError(409, "You have already reviewed this product");
+    // Customers may leave more than one review for a product, so no
+    // "already reviewed" restriction here.
 
     let isVerifiedPurchase = false;
     if (orderId) {
@@ -92,9 +111,45 @@ export const getProductReviews = async (req, res, next) => {
 export const updateReview = async (req, res, next) => {
   try {
     const { rating, comment } = req.body;
+    if (rating && (rating < 1 || rating > 5)) throw new ApiError(400, "Rating must be between 1 and 5");
+
     const review = await Review.findOne({ _id: req.params.reviewId, user: req.user._id });
     if (!review) throw new ApiError(404, "Review not found");
 
+    // Editing is only allowed within 30 minutes of posting.
+    if (Date.now() - new Date(review.createdAt).getTime() > EDIT_WINDOW_MS) {
+      throw new ApiError(403, "This review can no longer be edited. The 30-minute edit window has passed.");
+    }
+
+    // Determine which existing images the client wants to keep. `existingImages`
+    // is a JSON array of the surviving image URLs; anything missing is a removal.
+    let keep = review.images;
+    if (req.body.existingImages !== undefined) {
+      let parsed;
+      try {
+        parsed = typeof req.body.existingImages === "string"
+          ? JSON.parse(req.body.existingImages)
+          : req.body.existingImages;
+      } catch {
+        parsed = [];
+      }
+      keep = Array.isArray(parsed) ? parsed.filter((u) => review.images.includes(u)) : [];
+    }
+
+    // Delete removed images from Cloudinary so they don't waste storage.
+    const removed = review.images.filter((url) => !keep.includes(url));
+    await removeImagesFromCloudinary(removed);
+
+    // Upload any newly added images, capped at 2 total.
+    let uploadedUrls = [];
+    if (req.files?.length) {
+      const slots = Math.max(0, 2 - keep.length);
+      const toUpload = req.files.slice(0, slots);
+      const uploads = await Promise.all(toUpload.map((f) => uploadToCloudinary(f.buffer, "ecommerce/reviews")));
+      uploadedUrls = uploads.map((r) => r.secure_url);
+    }
+
+    review.images = [...keep, ...uploadedUrls];
     if (rating) review.rating = parseInt(rating);
     if (comment !== undefined) review.comment = comment;
     await review.save();
@@ -111,6 +166,7 @@ export const updateReview = async (req, res, next) => {
       });
     }
 
+    await review.populate("user", "name profileImage");
     res.json(new ApiResponse(200, { review }, "Review updated"));
   } catch (err) {
     next(err);
@@ -124,6 +180,9 @@ export const deleteReview = async (req, res, next) => {
 
     const review = await Review.findOneAndDelete(query);
     if (!review) throw new ApiError(404, "Review not found");
+
+    // Free the review's images from Cloudinary storage.
+    await removeImagesFromCloudinary(review.images);
 
     // Recalculate
     const stats = await Review.aggregate([
