@@ -1,11 +1,26 @@
 import { useNavigate } from 'react-router-dom';
 import { COMPANY, COMPANY_LINKS } from '../../config/company';
+import { useCatalog } from '../../context/CatalogContext';
+
+// Shown only until the real categories load (or if the fetch fails). These are
+// the singular names the backend actually stores, so they still filter correctly.
+const FALLBACK_SHOP = ['Air Conditioner', 'Refrigerator', 'Television', 'Washing Machine', 'Fan', 'Air Cooler'];
 
 export default function Footer() {
   const navigate = useNavigate();
+  const { topCategories } = useCatalog();
   const year = new Date().getFullYear();
 
   const link = 'block text-sm text-white/75 py-1 transition-colors cursor-pointer hover:text-accent';
+
+  // Build the Shop column from the real top-level categories so a footer click
+  // filters correctly — the backend matches the category name exactly, so
+  // hardcoded/guessed names (e.g. plural "Air Conditioners") returned nothing.
+  const shopCategoryNames = (topCategories.length > 0 ? topCategories.map(c => c.name) : FALLBACK_SHOP).slice(0, 6);
+  const shopLinks = shopCategoryNames.map(name => ({
+    label: name,
+    fn: () => navigate(`/products?category=${encodeURIComponent(name)}`),
+  }));
 
   return (
     <footer className="text-white mt-20" style={{ background: '#131921' }}>
@@ -43,14 +58,7 @@ export default function Footer() {
           </div>
 
           {[
-            { title: 'Shop', links: [
-              { label: 'Air Conditioners', fn: () => navigate('/products?category=Air Conditioners') },
-              { label: 'Refrigerators', fn: () => navigate('/products?category=Refrigerators') },
-              { label: 'Televisions', fn: () => navigate('/products?category=Televisions') },
-              { label: 'Washing Machines', fn: () => navigate('/products?category=Washing Machines') },
-              { label: 'Laptops', fn: () => navigate('/products?category=Laptops') },
-              { label: 'Smartphones', fn: () => navigate('/products?category=Smartphones') },
-            ]},
+            { title: 'Shop', links: shopLinks },
             { title: 'Account', links: [
               { label: 'My Profile', fn: () => navigate('/profile') },
               { label: 'My Orders', fn: () => navigate('/orders') },
@@ -62,7 +70,7 @@ export default function Footer() {
               { label: `Sales: ${COMPANY.salesPhone}`,     href: COMPANY_LINKS.salesTel },
               { label: `Support: ${COMPANY.supportPhone}`, href: COMPANY_LINKS.supportTel },
               { label: COMPANY.email,                       href: COMPANY_LINKS.emailLink },
-              { label: COMPANY.office,                      href: '#' },
+              { label: COMPANY.office,                      href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(COMPANY.office)}`, external: true },
             ]},
           ].map(col => (
             <div key={col.title}>
@@ -70,7 +78,8 @@ export default function Footer() {
               {col.links.map(l => (
                 l.fn
                   ? <a key={l.label} className={link} onClick={l.fn}>{l.label}</a>
-                  : <a key={l.label} className={link} href={l.href}>{l.label}</a>
+                  : <a key={l.label} className={link} href={l.href}
+                      {...(l.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{l.label}</a>
               ))}
               {col.title === 'Contact' && (
                 <div className="mt-4 text-xs text-white/40 leading-relaxed">{COMPANY.hours}</div>
