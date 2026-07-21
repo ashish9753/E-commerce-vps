@@ -6,6 +6,7 @@ import { upayaApi } from '../api/upaya';
 import { formatPriceShort, formatDate } from '../utils/formatters';
 import { useState, useEffect } from 'react';
 import { ClipboardList, BadgeCheck, Package, Truck, MapPin, CheckCircle2 } from 'lucide-react';
+import { loginNavState } from '../utils/authRedirect';
 
 const STEPS = [
   { key:'PLACED',           label:'Order Placed',     sublabel:'Order received',           Icon: ClipboardList },
@@ -137,7 +138,7 @@ export default function OrderTrackingPage() {
 
   const fetchOrder = async (id) => {
     if (!id?.trim()) return;
-    if (!user) { navigate('/login'); return; }
+    if (!user) { navigate('/login', loginNavState()); return; }
     setLoading(true); setSearched(true);
     const r = await getOrderById(id.trim());
     setLoading(false);

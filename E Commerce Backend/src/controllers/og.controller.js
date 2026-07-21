@@ -97,7 +97,7 @@ export const productOgPage = async (req, res) => {
       url: `${SITE_URL}/product/${p._id}`,
       price,
     }));
-  } catch (err) {
+  } catch {
     // Never error a crawler — fall back to a generic redirect page.
     const img = ogImage("");
     res.status(200).type("html").send(page({

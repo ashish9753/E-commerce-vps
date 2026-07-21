@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { normalizeProduct } from '../utils/normalizers';
 import { formatPriceShort, stars } from '../utils/formatters';
+import { loginNavState } from '../utils/authRedirect';
 
 export default function WishlistPage() {
   const navigate  = useNavigate();
@@ -19,7 +20,7 @@ export default function WishlistPage() {
         <div style={{ textAlign:'center' }}>
           <div style={{ fontSize:64, marginBottom:16 }}>❤️</div>
           <h3 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>Sign in to view your wishlist</h3>
-          <button onClick={() => navigate('/login')}
+          <button onClick={() => navigate('/login', loginNavState())}
             style={{ padding:'10px 28px', borderRadius:8, background:'#FF5A1F', color:'white', border:'none', fontWeight:700, fontSize:14, cursor:'pointer' }}>
             Sign In
           </button>

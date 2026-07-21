@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { formatPriceShort } from '../utils/formatters';
 import FreebieDetailsModal from '../components/FreebieDetailsModal';
+import { loginNavState } from '../utils/authRedirect';
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -27,7 +28,7 @@ export default function CartPage() {
         <div className="text-[80px]">🛒</div>
         <h3 className="text-2xl font-bold mt-4 mb-2">Sign in to view your cart</h3>
         <p className="text-mute mb-6">Your cart syncs across devices when you're signed in.</p>
-        <button className="btn btn-primary" onClick={() => navigate('/login', { state: { from: location } })}>Sign In</button>
+        <button className="btn btn-primary" onClick={() => navigate('/login', loginNavState(location))}>Sign In</button>
       </div>
     );
   }

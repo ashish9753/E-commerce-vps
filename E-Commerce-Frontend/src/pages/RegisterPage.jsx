@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff, Package, Tag, CreditCard, Headphones, ShieldCheck, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { validators, cleanPhone } from '../utils/validators';
 import GoogleAuthButton from '../components/GoogleAuthButton';
+import { resolveLoginTarget } from '../utils/authRedirect';
 
 const PERKS = [
   { icon: <Package size={15} />,    text: 'Track all your orders in one place' },
@@ -47,6 +48,7 @@ function InputField({ label, name, type = 'text', placeholder, value, error, onC
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { googleComplete } = useAuth();
   const toast = useToast();
 
@@ -112,9 +114,12 @@ export default function RegisterPage() {
     setLoading(false);
     if (result.success) {
       toast(`Account created! Welcome, ${result.user.name.split(' ')[0]}!`);
-      navigate('/', { replace: true });
+      // A new account created mid-purchase should land back on the product /
+      // cart page that triggered the sign-in, not on the home page.
+      const targetPath = resolveLoginTarget(result.user, location.state);
+      navigate(targetPath, { replace: true });
       window.setTimeout(() => {
-        if (window.location.pathname === '/register') window.location.replace('/');
+        if (window.location.pathname === '/register') window.location.replace(targetPath);
       }, 250);
     } else {
       toast(result.error, 'error');

@@ -7,6 +7,7 @@ import hpp from "hpp";
 
 import { errorHandler, notFound } from "./middleware/error.middleware.js";
 import { mongoSanitize } from "./middleware/sanitize.middleware.js";
+import { apiLimiter } from "./middleware/rateLimit.middleware.js";
 import routes from "./routes/index.js";
 
 const app = express();
@@ -58,7 +59,7 @@ app.use(hpp());
 
 app.get("/health", (req, res) => res.json({ status: "OK", timestamp: new Date() }));
 
-app.use("/api/v1", routes);
+app.use("/api/v1", apiLimiter, routes);
 
 app.use(notFound);
 app.use(errorHandler);

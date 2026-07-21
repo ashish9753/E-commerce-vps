@@ -29,6 +29,7 @@ import { resolveNotificationLink } from '../../utils/notificationLink';
 import { formatPriceShort } from '../../utils/formatters';
 import { useCatalog, getCatEmoji } from '../../context/CatalogContext';
 import { categories as FALLBACK_CATS } from '../../data/categories';
+import { loginNavState } from '../../utils/authRedirect';
 
 const TYPE_ICON = { ORDER:'📦', PAYMENT:'💳', OFFER:'🎁', REFUND:'↩️', SYSTEM:'🔔' };
 
@@ -209,9 +210,9 @@ export default function Header() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 769);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const navTo = (path) => {
+  const navTo = (path, opts) => {
     setMobileOpen(false);
-    navigate(path);
+    navigate(path, opts);
     window.scrollTo({ top: 0, behavior: 'instant' });
   };
   const searchRef = useRef(null);
@@ -455,7 +456,7 @@ export default function Header() {
                     ))}
                   </>
                 ) : (
-                  <button onClick={() => navigate('/login')} style={{ padding: '8px 18px', background: 'transparent',
+                  <button onClick={() => navigate('/login', loginNavState())} style={{ padding: '8px 18px', background: 'transparent',
                     border: '1px solid white', borderRadius: 4, color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
                     Sign In
                   </button>
@@ -677,7 +678,7 @@ export default function Header() {
           {!user && (
             <button
               type="button"
-              onClick={() => navTo('/login')}
+              onClick={() => navTo('/login', loginNavState())}
               className="te-drawer-signincta"
             >
               Sign In / Register

@@ -3,6 +3,7 @@ import { Home, LayoutGrid, Heart, ShoppingCart, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { loginNavState } from '../../utils/authRedirect';
 
 /**
  * Fixed bottom navigation for mobile, shown only on screens ≤ 768px.
@@ -34,9 +35,9 @@ export default function MobileBottomNav() {
   const tabs = [
     { key: 'home', icon: Home,         label: 'Home',     onClick: () => navigate('/'),                isActive: path === '/' },
     { key: 'shop', icon: LayoutGrid,   label: 'Shop',     onClick: () => navigate('/products'),        isActive: path.startsWith('/products') || path.startsWith('/product/') },
-    { key: 'wish', icon: Heart,        label: 'Wishlist', onClick: () => navigate(user ? '/wishlist' : '/login'), isActive: path.startsWith('/wishlist'), badge: wishCount },
+    { key: 'wish', icon: Heart,        label: 'Wishlist', onClick: () => navigate(user ? '/wishlist' : '/login', user ? undefined : loginNavState()), isActive: path.startsWith('/wishlist'), badge: wishCount },
     { key: 'cart', icon: ShoppingCart, label: 'Cart',     onClick: () => navigate('/cart'),            isActive: path.startsWith('/cart') || path.startsWith('/checkout'), badge: cartCount },
-    { key: 'acct', icon: User,         label: user ? 'Account' : 'Sign In', onClick: () => navigate(user ? '/profile' : '/login'), isActive: path.startsWith('/profile') || path.startsWith('/orders') },
+    { key: 'acct', icon: User,         label: user ? 'Account' : 'Sign In', onClick: () => navigate(user ? '/profile' : '/login', user ? undefined : loginNavState()), isActive: path.startsWith('/profile') || path.startsWith('/orders') },
   ];
 
   return (

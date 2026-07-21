@@ -1,7 +1,8 @@
 import { GoogleLogin } from '@react-oauth/google';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { resolveLoginTarget } from '../utils/authRedirect';
 
 /**
  * "Continue with Google" button used on both Login and Register pages.
@@ -15,6 +16,7 @@ import { useToast } from '../context/ToastContext';
  */
 export default function GoogleAuthButton({ text = 'continue_with', onNeedsRegistration }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { googleLogin } = useAuth();
   const toast = useToast();
 
@@ -34,14 +36,17 @@ export default function GoogleAuthButton({ text = 'continue_with', onNeedsRegist
         // reads sessionStorage on mount and pre-fills its form.
         sessionStorage.setItem('pendingGoogleSignup', JSON.stringify(payload));
         toast('Email verified — finish creating your account', 'info');
-        navigate('/register');
+        // Carry the return path through the detour so finishing signup still
+        // drops them back on the page that sent them here.
+        navigate('/register', { state: location.state });
       }
       return;
     }
 
     toast(`Welcome, ${result.user.name.split(' ')[0]}!`);
-    const role = String(result.user.role || '').toLowerCase();
-    const targetPath = role === 'admin' ? '/admin' : role === 'employee' ? '/employee' : '/';
+    // Same return-to rules as the password form — Google sign-in used to
+    // always dump the user on the home page.
+    const targetPath = resolveLoginTarget(result.user, location.state);
     navigate(targetPath, { replace: true });
     window.setTimeout(() => {
       if (window.location.pathname === '/login' || window.location.pathname === '/register') {

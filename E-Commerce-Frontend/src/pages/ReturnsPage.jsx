@@ -7,6 +7,7 @@ import { returnsApi } from '../api/returns';
 import { usersApi } from '../api/users';
 import { getErrorMessage } from '../api/client';
 import { formatPriceShort, formatDate } from '../utils/formatters';
+import { loginNavState } from '../utils/authRedirect';
 
 /* constants */
 const REASONS = [
@@ -343,7 +344,7 @@ export default function ReturnsPage() {
       .catch(() => {});
   }, [user]);
 
-  if (!user) { navigate('/login'); return null; }
+  if (!user) { navigate('/login', loginNavState()); return null; }
 
   const selectedOrder = orders.find(o => o._id === orderId);
 

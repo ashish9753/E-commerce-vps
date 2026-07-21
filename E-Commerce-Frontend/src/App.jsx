@@ -5,6 +5,7 @@ const MAINTENANCE_MODE = false;
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
+import { rememberReturnTo, resolveLoginTarget } from './utils/authRedirect';
 import Layout from './components/layout/Layout';
 import HomePage from './pages/HomePage';
 import ProductListPage from './pages/ProductListPage';
@@ -105,7 +106,12 @@ function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
   const location = useLocation();
   if (loading) return <Spinner />;
-  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!user) {
+    // Mirror to sessionStorage too — router state is lost if the login page
+    // is reached via a full reload or the Google signup detour.
+    rememberReturnTo(location);
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
   return children;
 }
 
@@ -128,9 +134,12 @@ function EmployeeRoute({ children }) {
 
 function GuestRoute({ children }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return null;
   const sessionUser = user || getStoredAuthUser();
-  if (sessionUser) return <Navigate to={getRoleHome(sessionUser)} replace />;
+  // Already signed in — don't show the auth screens. If they were bounced
+  // here from somewhere, honour that destination rather than the home page.
+  if (sessionUser) return <Navigate to={resolveLoginTarget(sessionUser, location.state)} replace />;
   return children;
 }
 

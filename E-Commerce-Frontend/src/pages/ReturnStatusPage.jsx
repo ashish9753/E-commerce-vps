@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { returnsApi } from '../api/returns';
 import { formatPriceShort, formatDate } from '../utils/formatters';
+import { loginNavState } from '../utils/authRedirect';
 
 /* status pipeline — employee-first flow */
 const REFUND_PIPELINE = [
@@ -351,7 +352,7 @@ export default function ReturnStatusPage() {
   }, [returnId]);
 
   useEffect(() => {
-    if (!user) { navigate('/login'); return; }
+    if (!user) { navigate('/login', loginNavState()); return; }
     load();
   }, [user, load]);
 

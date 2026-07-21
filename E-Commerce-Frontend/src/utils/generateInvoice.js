@@ -16,6 +16,8 @@ const STORE = {
   website:   COMPANY.website,
 };
 
+// All amounts on this invoice are Nepalese Rupees. en-IN grouping is used
+// because Nepal uses the same lakh/crore digit grouping as India.
 function fmtRs(n) {
   return "Rs. " + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -51,6 +53,52 @@ export async function generateInvoice(order, user) {
   const isCancelled = order.orderStatus === "CANCELLED";
   const isRefunded  = order.paymentStatus === "REFUNDED" || order.refundStatus === "COMPLETED";
 
+  // ── Payment state ────────────────────────────────────────────────────────
+  // Two ways an order carries money: the full ONLINE amount (fonepayPayment)
+  // or a non-refundable COD booking advance (fonepayBooking) with the balance
+  // collected on delivery. The invoice must state which, and how much is due.
+  const isOnline     = order.paymentMethod === "ONLINE";
+  const isPaid       = order.paymentStatus === "PAID";
+  const advanceAmt   = order.codBookingAmount || 0;
+  const advancePaid  = order.codBookingStatus === "PAID" && advanceAmt > 0;
+  const grandTotal   = order.totalPrice ?? 0;
+
+  // Amount actually received so far, and what is still outstanding.
+  const amountPaid = isPaid ? grandTotal : advancePaid ? advanceAmt : 0;
+  const balanceDue = isCancelled || isRefunded ? 0 : Math.max(grandTotal - amountPaid, 0);
+  const fullyPaid  = !isRefunded && !isCancelled && balanceDue === 0 && amountPaid > 0;
+
+  const paymentMethodLabel = isOnline
+    ? "Online · Fonepay QR"
+    : advanceAmt > 0
+      ? "COD + Booking Advance"
+      : "Cash on Delivery";
+
+  // Single-line status shown in the meta box, colour-coded below.
+  let paymentStatusLabel, paymentStatusColor;
+  if (isRefunded) {
+    paymentStatusLabel = "REFUNDED";
+    paymentStatusColor = [21, 128, 61];
+  } else if (isCancelled) {
+    paymentStatusLabel = "CANCELLED";
+    paymentStatusColor = [185, 28, 28];
+  } else if (fullyPaid) {
+    paymentStatusLabel = "PAID IN FULL";
+    paymentStatusColor = [21, 128, 61];
+  } else if (advancePaid) {
+    paymentStatusLabel = "PARTIALLY PAID";
+    paymentStatusColor = [180, 83, 9];
+  } else if (order.paymentStatus === "FAILED") {
+    paymentStatusLabel = "PAYMENT FAILED";
+    paymentStatusColor = [185, 28, 28];
+  } else {
+    paymentStatusLabel = "UNPAID / PENDING";
+    paymentStatusColor = [185, 28, 28];
+  }
+
+  // Anything not settled in full is a proforma, not a tax invoice.
+  const isProforma = !fullyPaid && !isCancelled && !isRefunded;
+
   // Header (clean, white background)
   // Company legal name — bold black, left aligned.
   doc.setTextColor(20, 20, 20);
@@ -71,9 +119,9 @@ export async function generateInvoice(order, user) {
   }
 
   // INVOICE / CREDIT NOTE label — dark, right aligned.
-  const docLabel = isCancelled ? "CREDIT NOTE" : "INVOICE";
+  const docLabel = isCancelled ? "CREDIT NOTE" : isProforma ? "PROFORMA INVOICE" : "INVOICE";
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(20);
+  doc.setFontSize(isProforma && !isCancelled ? 16 : 20);
   doc.setTextColor(20, 20, 20);
   doc.text(docLabel, W - margin, 13, { align: "right" });
 
@@ -82,10 +130,15 @@ export async function generateInvoice(order, user) {
   if (isCancelled) {
     doc.setTextColor(185, 28, 28);
     doc.text("ORDER CANCELLED", W - margin, 19, { align: "right" });
+  } else if (isProforma) {
+    doc.setTextColor(...paymentStatusColor);
+    doc.text(paymentStatusLabel, W - margin, 19, { align: "right" });
   } else {
     doc.setTextColor(130, 130, 130);
     doc.text("(ORIGINAL FOR RECIPIENT)", W - margin, 19, { align: "right" });
   }
+  doc.setTextColor(130, 130, 130);
+  doc.text("All amounts in NPR", W - margin, 24, { align: "right" });
 
   // Divider under the header.
   doc.setDrawColor(210, 210, 210);
@@ -141,6 +194,35 @@ export async function generateInvoice(order, user) {
     y += 19;
   }
 
+  // OUTSTANDING PAYMENT banner — shown whenever money is still due, so an
+  // unpaid or advance-only order can never be mistaken for a settled one.
+  if (isProforma) {
+    const partial = advancePaid;
+    doc.setFillColor(...(partial ? [255, 251, 235] : [254, 226, 226]));
+    doc.setDrawColor(...(partial ? [217, 119, 6] : [220, 38, 38]));
+    doc.roundedRect(margin, y - 4, W - margin * 2, partial ? 20 : 14, 3, 3, "FD");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...paymentStatusColor);
+    doc.text(partial ? "!  PARTIALLY PAID" : "!  PAYMENT PENDING — NOT PAID", margin + 5, y + 4);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(`Balance due: ${fmtRs(balanceDue)}`, W - margin - 5, y + 4, { align: "right" });
+
+    if (partial) {
+      doc.setFontSize(7.5);
+      doc.text(
+        `Non-refundable booking advance of ${fmtRs(advanceAmt)} received. Balance payable on delivery.`,
+        margin + 5, y + 11
+      );
+    }
+
+    doc.setTextColor(0, 0, 0);
+    y += partial ? 25 : 19;
+  }
+
   // Two-column: Sold By | Invoice Meta
   const col2 = 108;
   const metaW = W - col2 - margin;
@@ -157,36 +239,41 @@ export async function generateInvoice(order, user) {
   doc.text(`Phone: ${STORE.phone}`, margin, y + 25);
 
   // Invoice meta box — two tight columns inside
-  doc.setDrawColor(200, 200, 200);
-  doc.setFillColor(248, 249, 250);
-  doc.roundedRect(col2, y - 4, metaW, 42, 3, 3, "FD");
-
   const lx = col2 + 4;   // label x
   const vx = col2 + 38;  // value x  (tight — no overflow)
 
   const metaRows = [
-    ["Invoice No.",   `INV-${shortNum(order.orderNumber)}`],
-    ["Invoice Date:", fmtDate(order.paidAt || order.createdAt)],
-    ["Order No.:",    shortNum(order.orderNumber)],
-    ["Order Date:",   fmtDate(order.createdAt)],
-    ["Payment:",      order.paymentMethod === "ONLINE" ? "Online / UPI" : "Cash on Delivery"],
+    ["Invoice No.",   `INV-${shortNum(order.orderNumber)}`, null],
+    ["Invoice Date:", fmtDate(order.paidAt || order.createdAt), null],
+    ["Order No.:",    shortNum(order.orderNumber), null],
+    ["Order Date:",   fmtDate(order.createdAt), null],
+    ["Payment Mode:", paymentMethodLabel, null],
+    ["Payment Status:", paymentStatusLabel, paymentStatusColor],
   ];
+  if (amountPaid > 0) metaRows.push(["Amount Paid:", fmtRs(amountPaid), [21, 128, 61]]);
+  if (balanceDue > 0) metaRows.push(["Balance Due:", fmtRs(balanceDue), [185, 28, 28]]);
 
-  metaRows.forEach(([label, value], i) => {
+  const metaH = metaRows.length * 7 + 5;
+  doc.setDrawColor(200, 200, 200);
+  doc.setFillColor(248, 249, 250);
+  doc.roundedRect(col2, y - 4, metaW, metaH, 3, 3, "FD");
+
+  metaRows.forEach(([label, value, color], i) => {
     const ry = y + 2 + i * 7;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(80, 80, 80);
     doc.text(label, lx, ry);
 
-    doc.setFont("helvetica", "normal");
+    doc.setFont("helvetica", color ? "bold" : "normal");
     doc.setFontSize(7.5);
-    doc.setTextColor(20, 20, 20);
+    if (color) doc.setTextColor(...color);
+    else       doc.setTextColor(20, 20, 20);
     doc.text(String(value), vx, ry, { maxWidth: metaW - 40 });
   });
 
   doc.setTextColor(0, 0, 0);
-  y += 48;
+  y += Math.max(metaH + 6, 48);
 
   // Bill To
   doc.setFillColor(241, 245, 249);
@@ -309,19 +396,61 @@ export async function generateInvoice(order, user) {
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
-  const totalLabel = isRefunded ? "NET PAYABLE" : isCancelled ? "CANCELLED" : "TOTAL";
+  const totalLabel = isRefunded ? "NET PAYABLE" : isCancelled ? "CANCELLED" : "ORDER TOTAL";
   doc.text(totalLabel, bx + 4, totalY + 6.5);
   doc.text(isRefunded ? fmtRs(0) : fmtRs(total), W - margin - 2, totalY + 6.5, { align: "right" });
   doc.setTextColor(0, 0, 0);
 
+  let barY = totalY + 10;
+
+  // Settlement lines under the total: what has been received against this
+  // order and what is still outstanding.
+  if (!isCancelled && !isRefunded && (amountPaid > 0 || balanceDue > 0)) {
+    const settleRows = [];
+    if (advancePaid) {
+      settleRows.push(["Less: Advance Paid", `- ${fmtRs(advanceAmt)}`, [21, 128, 61]]);
+    } else if (amountPaid > 0) {
+      settleRows.push(["Amount Paid", `- ${fmtRs(amountPaid)}`, [21, 128, 61]]);
+    }
+
+    settleRows.forEach(([label, value, color]) => {
+      barY += 5.5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...color);
+      doc.text(label, bx + 4, barY, { maxWidth: bw * 0.6 });
+      doc.text(value, W - margin - 2, barY, { align: "right" });
+    });
+    doc.setTextColor(0, 0, 0);
+
+    // Balance bar — red while money is owed, green once nothing is due.
+    barY += 3;
+    doc.setFillColor(...(balanceDue > 0 ? [185, 28, 28] : [21, 128, 61]));
+    doc.roundedRect(bx, barY, bw, 10, 2, 2, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.text(
+      balanceDue > 0 ? (isOnline ? "BALANCE DUE" : "PAYABLE ON DELIVERY") : "NOTHING DUE",
+      bx + 4, barY + 6.5
+    );
+    doc.text(fmtRs(balanceDue), W - margin - 2, barY + 6.5, { align: "right" });
+    doc.setTextColor(0, 0, 0);
+    barY += 10;
+  }
+
   // Amount in words
-  y = totalY + 15;
+  y = Math.max(totalY + 15, barY + 5);
   doc.setFont("helvetica", "italic");
   doc.setFontSize(7.5);
   doc.text(
     `Amount Chargeable (in words): ${amountToWords(isRefunded ? 0 : total)} Only`,
     margin, y
   );
+  if (balanceDue > 0 && !isCancelled && !isRefunded) {
+    y += 4.5;
+    doc.text(`Balance Payable (in words): ${amountToWords(balanceDue)} Only`, margin, y);
+  }
 
   // Free-gift savings note — sums the retail worth of every freebie line so the
   // customer sees how much value the order included at no cost.
@@ -336,6 +465,76 @@ export async function generateInvoice(order, user) {
     doc.setTextColor(21, 128, 61);
     doc.text(`You received free gift(s) worth ${fmtRs(freebieWorth)} with this order.`, margin, y);
     doc.setTextColor(0, 0, 0);
+  }
+
+  // Payment details block — method, status, and the advance/balance split so
+  // the customer can see exactly what has been settled and what has not.
+  {
+    y += 7;
+    const payRows = [
+      ["Payment Method", paymentMethodLabel],
+      ["Payment Status", paymentStatusLabel],
+    ];
+
+    const txn = isOnline ? order.fonepayPayment : order.fonepayBooking;
+
+    if (advanceAmt > 0) {
+      payRows.push(["Booking Advance (Non-refundable)", fmtRs(advanceAmt)]);
+      payRows.push([
+        "Advance Status",
+        advancePaid ? `Paid${txn?.paidAt ? ` on ${fmtDateTime(txn.paidAt)}` : ""}` : order.codBookingStatus === "REJECTED" ? "Rejected" : "Pending",
+      ]);
+    }
+
+    if (isOnline) {
+      payRows.push([
+        "Amount Received",
+        isPaid ? `${fmtRs(grandTotal)}${order.paidAt ? ` on ${fmtDateTime(order.paidAt)}` : ""}` : fmtRs(0),
+      ]);
+    }
+
+    if (txn?.prn)     payRows.push(["Transaction Ref (PRN)", txn.prn]);
+    if (txn?.traceId) payRows.push(["Gateway Trace ID", txn.traceId]);
+
+    if (!isCancelled && !isRefunded) {
+      payRows.push([
+        balanceDue > 0 ? (isOnline ? "Balance Due" : "Payable on Delivery (Cash)") : "Balance Due",
+        fmtRs(balanceDue),
+      ]);
+    }
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Payment Detail", "Value"]],
+      body: payRows,
+      theme: "grid",
+      headStyles: {
+        fillColor: balanceDue > 0 && !isCancelled ? [180, 83, 9] : [19, 25, 33],
+        textColor: 255,
+        fontStyle: "bold",
+        fontSize: 7.5,
+      },
+      bodyStyles: { fontSize: 7.5, textColor: [40, 40, 40] },
+      columnStyles: {
+        0: { fontStyle: "bold", cellWidth: 62 },
+        1: { cellWidth: "auto" },
+      },
+      margin: { left: margin, right: margin },
+    });
+
+    y = doc.lastAutoTable.finalY + 4;
+
+    if (advanceAmt > 0 && !isRefunded) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(7);
+      doc.setTextColor(180, 83, 9);
+      doc.text(
+        `Note: The booking advance of ${fmtRs(advanceAmt)} is non-refundable and is not returned if the order is cancelled by the customer.`,
+        margin, y, { maxWidth: W - margin * 2 }
+      );
+      doc.setTextColor(0, 0, 0);
+      y += 5;
+    }
   }
 
   // Cancellation / Refund detail block
@@ -405,15 +604,19 @@ export async function generateInvoice(order, user) {
   doc.text("This is a Computer Generated Invoice", W / 2, 291, { align: "center" });
 
   // Save
-  const suffix = isCancelled ? "Cancelled" : isRefunded ? "Refunded" : "";
+  const suffix = isCancelled ? "Cancelled"
+               : isRefunded  ? "Refunded"
+               : advancePaid ? "PartiallyPaid"
+               : isProforma  ? "Unpaid"
+               : "";
   const fname  = `Invoice-${shortNum(order.orderNumber)}${suffix ? "-" + suffix : ""}.pdf`;
   doc.save(fname);
 }
 
-// Number → INR words (up to crores)
+// Number → NPR words (up to crores; Nepal uses the lakh/crore scale)
 function amountToWords(amount) {
   const n = Math.round(amount);
-  if (n === 0) return "INR Zero";
+  if (n === 0) return "NPR Zero";
   const ones = ["","One","Two","Three","Four","Five","Six","Seven","Eight","Nine",
                  "Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen",
                  "Seventeen","Eighteen","Nineteen"];
@@ -427,5 +630,5 @@ function amountToWords(amount) {
     if (num < 10000000)  return convert(Math.floor(num / 100000)) + "Lakh " + convert(num % 100000);
     return convert(Math.floor(num / 10000000)) + "Crore " + convert(num % 10000000);
   }
-  return `INR ${convert(n).trim()}`;
+  return `NPR ${convert(n).trim()}`;
 }

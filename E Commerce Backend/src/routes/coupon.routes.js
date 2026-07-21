@@ -6,15 +6,12 @@ import {
 import { protect, optionalAuth } from "../middleware/auth.middleware.js";
 import { authorize } from "../middleware/role.middleware.js";
 import { requirePermission } from "../middleware/permission.middleware.js";
+import { couponLimiter } from "../middleware/rateLimit.middleware.js";
 
 const router = Router();
 
-// Tight limit on the public-facing validate endpoint to stop coupon-code
-// brute-forcing. Keyed per user when authenticated, falling back to IP.
-const couponValidateLimiter = (req, res, next) => next();
-
 router.get("/public", optionalAuth, getPublicCoupons);
-router.post("/validate", protect, couponValidateLimiter, validateCoupon);
+router.post("/validate", protect, couponLimiter, validateCoupon);
 
 router.use(protect, authorize("admin", "employee"));
 router.get("/", requirePermission("coupons"), getAllCoupons);

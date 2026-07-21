@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { validators } from '../utils/validators';
 import GoogleAuthButton from '../components/GoogleAuthButton';
+import { resolveLoginTarget } from '../utils/authRedirect';
 
 const BENEFITS = [
   { icon: <Truck size={16} />,       text: 'Free delivery on orders above Rs. 499' },
@@ -25,15 +26,6 @@ export default function LoginPage() {
   const location = useLocation();
   const { login } = useAuth();
 
-  // Where to send the user after a successful sign-in. If a guard or a
-  // "Sign in to continue" action bounced them here, `location.state.from`
-  // holds the page they were trying to reach — return them there so they
-  // don't have to hunt for the product again. Admin/employee always land
-  // on their own dashboard.
-  const from = location.state?.from;
-  const returnTo = from
-    ? `${from.pathname || '/'}${from.search || ''}${from.hash || ''}`
-    : null;
   const toast = useToast();
   const [form, setForm]     = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
@@ -59,12 +51,9 @@ export default function LoginPage() {
     setLoading(false);
     if (result.success) {
       toast(`Welcome back, ${result.user.name.split(' ')[0]}!`);
-      const role = String(result.user.role || '').toLowerCase();
-      const targetPath = role === 'admin'
-        ? '/admin'
-        : role === 'employee'
-          ? '/employee'
-          : (returnTo || '/');
+      // Back to whatever they were doing before the sign-in wall (product
+      // page, cart, checkout…). Staff always land on their own dashboard.
+      const targetPath = resolveLoginTarget(result.user, location.state);
       navigate(targetPath, { replace: true });
 
       // Production fallback: if the SPA router is interrupted by a stale auth

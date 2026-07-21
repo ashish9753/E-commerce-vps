@@ -11,6 +11,7 @@ import { formatPriceShort, formatDate } from '../utils/formatters';
 import SupportIcon from '../components/icons/SupportIcon';
 import { generateInvoice } from '../utils/generateInvoice';
 import FonepayCheckout from '../components/FonepayCheckout';
+import { loginNavState } from '../utils/authRedirect';
 
 // Unpaid online orders auto-cancel after this many minutes (matches backend
 // PENDING_ORDER_TIMEOUT_MIN). Kept here as a UI fallback if /config call fails.
@@ -293,7 +294,7 @@ export default function OrdersPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!user) { navigate('/login'); return; }
+    if (!user) { navigate('/login', loginNavState()); return; }
     reloadOrders().finally(() => setLoading(false));
     // Pull live timeout from backend so the countdown matches the sweep schedule.
     // Uses the shared axios client → inherits the configured base URL and the

@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { usersApi } from '../api/users';
 import { upayaApi } from '../api/upaya';
 import { validators, cleanPhone, isValidPhone } from '../utils/validators';
+import { loginNavState } from '../utils/authRedirect';
 
 // Common Nepali provinces — used as datalist suggestions, not enforced.
 const NEPAL_PROVINCES = [
@@ -266,7 +267,7 @@ export default function ProfilePage() {
     finally { setRefundSaving(false); }
   };
 
-  if (!user) { navigate('/login'); return null; }
+  if (!user) { navigate('/login', loginNavState()); return null; }
 
   const handleLogout = () => { logout(); toast('Signed out successfully'); navigate('/'); };
 

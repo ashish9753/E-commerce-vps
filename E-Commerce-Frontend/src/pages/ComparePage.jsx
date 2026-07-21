@@ -4,12 +4,13 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { formatPriceShort, stars } from '../utils/formatters';
+import { loginNavState } from '../utils/authRedirect';
 
 export default function ComparePage() {
   const navigate = useNavigate();
   const location = useLocation();
   // Return the shopper to the compare page after they sign in.
-  const loginState = { state: { from: location } };
+  const loginState = () => loginNavState(location);
   const { items, remove, clear } = useCompare();
   const { addToCart } = useCart();
   const { user } = useAuth();
@@ -29,7 +30,7 @@ export default function ComparePage() {
   const allKeys = [...new Set(items.flatMap(p => (p.specs || []).map(s => s.k)))];
 
   const handleAddToCart = async (p) => {
-    if (!user) { toast('Please sign in to add items to cart', 'error'); navigate('/login', loginState); return; }
+    if (!user) { toast('Please sign in to add items to cart', 'error'); navigate('/login', loginState()); return; }
     if (p.colors?.length) { navigate(`/product/${p._id || p.id}`); return; }
     const result = await addToCart(p._id || p.id, 1);
     if (result?.success === false) toast(result.error, 'error');

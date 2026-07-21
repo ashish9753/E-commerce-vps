@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../context/NotificationContext';
 import { useAuth } from '../context/AuthContext';
 import { resolveNotificationLink } from '../utils/notificationLink';
+import { loginNavState } from '../utils/authRedirect';
 
 const TYPE_ICON  = { ORDER:'📦', PAYMENT:'💳', OFFER:'🎁', REFUND:'↩️', SYSTEM:'🔔' };
 const TYPE_COLOR = { ORDER:'#3b82f6', PAYMENT:'#8b5cf6', OFFER:'#f59e0b', REFUND:'#22c55e', SYSTEM:'#6b7280' };
@@ -36,7 +37,7 @@ export default function NotificationsPage() {
         <div style={{ textAlign:'center' }}>
           <div style={{ fontSize:64, marginBottom:16 }}>🔔</div>
           <h3 style={{ fontSize:22, fontWeight:700, marginBottom:8 }}>Sign in to view notifications</h3>
-          <button onClick={() => navigate('/login')}
+          <button onClick={() => navigate('/login', loginNavState())}
             style={{ padding:'10px 28px', borderRadius:8, background:'#FF5A1F', color:'white', border:'none', fontWeight:700, fontSize:14, cursor:'pointer' }}>
             Sign In
           </button>

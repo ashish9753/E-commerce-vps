@@ -5,24 +5,11 @@ import {
   googleAuth, googleRegister,
 } from "../controllers/auth.controller.js";
 import { protect } from "../middleware/auth.middleware.js";
+import {
+  sensitiveLimiter, signupLimiter, refreshLimiter,
+} from "../middleware/rateLimit.middleware.js";
 
 const router = Router();
-
-// All limits are PER-IP — `app.set('trust proxy', 1)` in app.js makes that
-// work correctly behind Render's edge. Numbers are deliberately generous so
-// real users (refresh, browser autofill retry, fat-finger password) never
-// hit them; only abusive loops will.
-
-// Brute-force-sensitive endpoints (password guessing, email enumeration).
-const sensitiveLimiter = (req, res, next) => next();
-
-// Signup-style endpoints — slightly more lenient because legitimate users
-// sometimes fumble (typo email, retry Google flow, etc.).
-const signupLimiter = (req, res, next) => next();
-
-// Token refresh fires in the background whenever the 15-min access token
-// expires, so this needs a much higher ceiling than the others.
-const refreshLimiter = (req, res, next) => next();
 
 router.post("/register",       signupLimiter,    register);
 router.post("/login",          sensitiveLimiter, login);

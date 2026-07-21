@@ -110,7 +110,8 @@ const clearRefreshCookie = (req, res) => {
 
 export const register = async (req, res, next) => {
   try {
-    const { name, email, phone, password, role } = req.body;
+    // `role` is intentionally NOT read from the body — it is always "user".
+    const { name, email, phone, password } = req.body;
 
     if (!name || !email || !phone || !password) {
       throw new ApiError(400, "All fields are required");
@@ -272,21 +273,26 @@ export const forgotPassword = async (req, res, next) => {
     const { email } = req.body;
     if (!email) throw new ApiError(400, "Email is required");
 
+    // One identical response on every path — a different message, or an error
+    // bubbling out of sendEmail, would tell an attacker which emails exist.
+    const GENERIC = "If this email is registered, a reset link has been sent";
+
     const user = await User.findOne({ email });
-    if (!user) {
-      // Return same message whether email exists or not — prevents email enumeration
-      return res.json(new ApiResponse(200, null, "If this email is registered, a reset link has been sent"));
+    if (user) {
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      user.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+      user.resetPasswordExpiry = new Date(Date.now() + 15 * 60 * 1000);
+      await user.save({ validateBeforeSave: false });
+
+      const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+      try {
+        await sendEmail({ to: user.email, ...passwordResetEmail(user.name, resetUrl) });
+      } catch (mailErr) {
+        console.error("[forgotPassword] send failed:", mailErr.message);
+      }
     }
 
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    user.resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
-    user.resetPasswordExpiry = new Date(Date.now() + 15 * 60 * 1000);
-    await user.save({ validateBeforeSave: false });
-
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
-    await sendEmail({ to: user.email, ...passwordResetEmail(user.name, resetUrl) });
-
-    res.json(new ApiResponse(200, null, "Password reset email sent"));
+    res.json(new ApiResponse(200, null, GENERIC));
   } catch (err) {
     next(err);
   }

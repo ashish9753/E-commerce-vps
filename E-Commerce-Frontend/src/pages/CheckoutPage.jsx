@@ -13,6 +13,7 @@ import { formatPriceShort } from '../utils/formatters';
 import { cleanPhone, isValidPhone } from '../utils/validators';
 import { getErrorMessage } from '../api/client';
 import FonepayCheckout from '../components/FonepayCheckout';
+import { loginNavState } from '../utils/authRedirect';
 
 /* tiny helpers */
 const Inp = ({ label, value, onChange, placeholder, half }) => (
@@ -411,7 +412,7 @@ export default function CheckoutPage() {
     : {};
 
   useEffect(() => {
-    if (!user) { navigate('/login'); return; }
+    if (!user) { navigate('/login', loginNavState()); return; }
     usersApi.getProfile()
       .then(({ data }) => {
         const addrs = data.data?.user?.addresses || [];

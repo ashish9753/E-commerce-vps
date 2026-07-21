@@ -6,6 +6,7 @@ import { supportApi } from '../api/support';
 import { ordersApi } from '../api/orders';
 import SupportIcon from '../components/icons/SupportIcon';
 import { COMPANY } from '../config/company';
+import { loginNavState } from '../utils/authRedirect';
 
 /* palette */
 const C = {
@@ -632,7 +633,7 @@ export default function SupportPage() {
   const [showNew, setShowNew]         = useState(false);
 
   useEffect(() => {
-    if (!user) { navigate('/login'); return; }
+    if (!user) { navigate('/login', loginNavState()); return; }
     fetchTickets();
     const tid = searchParams.get('ticketId');
     if (tid) openTicket(tid);

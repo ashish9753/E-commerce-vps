@@ -36,8 +36,12 @@ services:
   # ── Redis ─────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    # Deliberately NOT published to the host. `api` reaches it over the
+    # ecommerce-net bridge as redis:6379. Publishing it would expose an
+    # unauthenticated Redis on the VPS's public interface — and Docker's port
+    # publishing writes its own iptables rules, so ufw would not block it.
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
     healthcheck:
