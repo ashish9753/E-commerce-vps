@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="TradEngine e-commerce interview revision guide" />
+    <title>TradEngine | Interview Revision</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="#top"><span class="brand-mark">T</span><span>TradEngine<small>INTERVIEW NOTES</small></span></a>
+      <nav aria-label="Revision sections">
+        <a class="active" href="#overview">01 <span>Project overview</span></a>
+        <a href="#architecture">02 <span>Architecture</span></a>
+        <a href="#request">03 <span>Request flow</span></a>
+        <a href="#auth">04 <span>JWT & security</span></a>
+        <a href="#queue">05 <span>Redis & queue</span></a>
+        <a href="#database">06 <span>Database</span></a>
+        <a href="#realtime">07 <span>Real-time & payment</span></a>
+        <a href="#deployment">08 <span>Docker & Nginx</span></a>
+        <a href="#questions">09 <span>Interview questions</span></a>
+      </nav>
+      <p class="side-tip">Tip: explain the problem first, then the technology, then how you used it.</p>
+    </aside>
+
+    <main id="top">
+      <section class="hero" id="overview">
+        <div class="eyebrow"><i></i> YOUR PROJECT, SIMPLY EXPLAINED</div>
+        <h1>E-commerce<br /><em>interview playbook.</em></h1>
+        <p class="lead">A simple revision guide for explaining your own full-stack project with confidence. Read the highlighted answer aloud before an interview.</p>
+        <div class="quick-grid">
+          <article><b>Frontend</b><span>React + Vite</span></article>
+          <article><b>Backend</b><span>Node + Express</span></article>
+          <article><b>Data</b><span>MongoDB + Redis</span></article>
+          <article><b>Deploy</b><span>Docker + Nginx</span></article>
+        </div>
+      </section>
+
+      <section class="section intro-card">
+        <span class="section-no">01</span>
+        <div>
+          <h2>One-minute project introduction</h2>
+          <div class="say">
+            <span>Say this</span>
+            <p>“TradEngine is a full-stack e-commerce platform. Customers can browse products, manage a cart and wishlist, pay, track orders, request returns, and chat for support. Admins and employees manage products, inventory, orders, users, banners, and more. The frontend is React, the API is Node.js and Express, MongoDB stores permanent data, and Redis with Bull processes orders safely in the background. I containerized the services with Docker and serve the frontend through Nginx.”</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="architecture">
+        <span class="section-no">02</span>
+        <div class="section-head"><h2>How the system is built</h2><p>Each piece has one clear responsibility.</p></div>
+        <div class="flow architecture-flow" aria-label="System architecture flow">
+          <div class="node client"><strong>Browser</strong><small>React / Vite</small></div><b>→</b>
+          <div class="node edge"><strong>Nginx</strong><small>static files + /api proxy</small></div><b>→</b>
+          <div class="node api"><strong>Express API</strong><small>routes, rules, auth</small></div>
+          <b>→</b><div class="node data"><strong>MongoDB</strong><small>permanent records</small></div>
+          <b class="down">↘</b><div class="node redis"><strong>Redis + Bull</strong><small>order jobs</small></div>
+        </div>
+        <div class="cards three">
+          <article class="info-card"><span class="tag blue">React frontend</span><h3>What it does</h3><p>Shows pages and sends API requests. Contexts keep shared state such as auth, cart, wishlist, notifications, compare list, and catalog.</p></article>
+          <article class="info-card"><span class="tag orange">Express backend</span><h3>What it does</h3><p>Receives requests, validates them, checks permissions, runs business rules, then sends JSON responses. Routes → controllers → models is the main structure.</p></article>
+          <article class="info-card"><span class="tag green">MongoDB</span><h3>What it does</h3><p>Stores long-term business data: users, products, carts, orders, payments, reviews, coupons, returns, and inventory logs.</p></article>
+        </div>
+      </section>
+
+      <section class="section" id="request">
+        <span class="section-no">03</span>
+        <div class="section-head"><h2>What happens in an API request?</h2><p>Use this to explain any endpoint.</p></div>
+        <ol class="steps">
+          <li><b>1</b><div><strong>React calls the API</strong><p>For example, the cart page sends <code>POST /api/v1/orders</code> with the customer’s order details.</p></div></li>
+          <li><b>2</b><div><strong>Express middleware runs first</strong><p>Helmet adds security headers; CORS checks the frontend origin; rate limiting blocks repeated abuse; JSON parsing reads the request body; auth reads the JWT.</p></div></li>
+          <li><b>3</b><div><strong>Route and controller handle the work</strong><p>The route chooses the controller. The controller validates input, checks user role/ownership, talks to the database or queue, and returns a consistent response.</p></div></li>
+          <li><b>4</b><div><strong>Errors are handled centrally</strong><p>Unknown routes go to <code>notFound</code>; thrown errors go to one error handler. This keeps error responses predictable and avoids repeating error code.</p></div></li>
+        </ol>
+        <div class="say compact"><span>Good interview phrase</span><p>“Middleware is like a security and preparation layer before the controller runs. It lets me keep cross-cutting work—such as authentication, validation, rate limiting, and error handling—out of every controller.”</p></div>
+      </section>
+
+      <section class="section" id="auth">
+        <span class="section-no">04</span>
+        <div class="section-head"><h2>JWT, login & security</h2><p>JWT means JSON Web Token.</p></div>
+        <div class="split">
+          <div>
+            <div class="token-row"><span class="token header">Header</span><span class="token payload">Payload</span><span class="token sign">Signature</span></div>
+            <p class="caption">A JWT is signed, not encrypted. Do not put a password or private data inside it.</p>
+            <div class="auth-flow"><span>Login</span><b>→</b><span>Verify password<br /><small>bcrypt hash</small></span><b>→</b><span>Sign JWT</span><b>→</b><span>Browser sends token</span></div>
+          </div>
+          <div class="answer-box"><h3>How your project uses it</h3><p>After login, the backend signs a short-lived access token and a refresh token using secret environment variables. On protected requests, auth middleware verifies the access token and places the user data on <code>req.user</code>. Role/permission middleware then decides whether the user may perform the action.</p><p><strong>Access token:</strong> short life, used often. <strong>Refresh token:</strong> longer life, used to get a new access token without logging in again.</p></div>
+        </div>
+        <div class="security-grid">
+          <div><b>bcrypt</b><span>Hashes passwords with salt. We compare hashes; we never decrypt passwords.</span></div>
+          <div><b>CORS</b><span>Allows only trusted browser origins to call the API with credentials.</span></div>
+          <div><b>Helmet + HPP</b><span>Helmet adds safer HTTP headers. HPP protects against duplicate query parameter pollution.</span></div>
+          <div><b>Rate limit</b><span>Restricts rapid requests, especially login/coupon endpoints, to slow brute-force and spam attacks.</span></div>
+        </div>
+      </section>
+
+      <section class="section queue-section" id="queue">
+        <span class="section-no">05</span>
+        <div class="section-head"><h2>Redis queue: the important part</h2><p>In this project, Bull is the queue library and Redis is its fast storage engine.</p></div>
+        <div class="say"><span>Say this</span><p>“I use a queue for order processing because placing an order involves important work: checking stock, creating the order, reducing inventory, logging changes, and handling failures. The API adds a job to the Bull queue, Redis keeps the job, and the queue worker processes one job at a time. The current API waits for that job to finish before returning the confirmed order, which keeps the customer response accurate while still serializing critical stock work.”</p></div>
+        <div class="queue-flow">
+          <div><i>1</i><strong>Customer places order</strong><small>API validates cart and creates a job</small></div><b>→</b>
+          <div class="redis-box"><i>2</i><strong>Redis stores job</strong><small>Bull queue: <code>order-queue</code></small></div><b>→</b>
+          <div><i>3</i><strong>Worker processes it</strong><small>Checks stock + creates order</small></div><b>→</b>
+          <div><i>4</i><strong>Result saved</strong><small>MongoDB transaction, then confirmed response</small></div>
+        </div>
+        <div class="cards two">
+          <article class="info-card"><h3>Why Redis?</h3><p>Redis is an in-memory key-value store, so it is very fast. Bull uses it to hold waiting, active, completed, and failed jobs. Redis is not your main permanent database here; MongoDB is.</p></article>
+          <article class="info-card"><h3>What if a job fails?</h3><p>Bull marks it failed and logs the error. Your order processor also rolls back stock when an order fails. In production, use retries, monitoring, and alerts. In development, <code>SKIP_QUEUE=true</code> can process synchronously without Redis.</p></article>
+        </div>
+        <div class="warning"><strong>Important:</strong> A queue improves reliability but does not magically solve every race condition. Your project uses a MongoDB transaction during queued order processing, so stock and order updates succeed or fail together.</div>
+      </section>
+
+      <section class="section" id="database">
+        <span class="section-no">06</span>
+        <div class="section-head"><h2>MongoDB & data modelling</h2><p>MongoDB stores JSON-like documents; Mongoose gives schemas and validation.</p></div>
+        <div class="model-map">
+          <div class="model product">Product<br /><small>stock, price, category</small></div><i>←</i><div class="model order">Order<br /><small>items, status, address</small></div><i>→</i><div class="model payment">Payment<br /><small>amount, status, provider</small></div>
+          <div class="model user">User<br /><small>role, permissions</small></div><i>→</i><div class="model cart">Cart<br /><small>items, coupon</small></div><i>→</i><div class="model return">Return request<br /><small>reason, timeline</small></div>
+        </div>
+        <div class="cards three">
+          <article class="info-card"><h3>Schema</h3><p>A Mongoose schema defines shape and rules: required fields, types, defaults, references, and indexes. It prevents invalid data from being saved.</p></article>
+          <article class="info-card"><h3>Reference</h3><p>Fields like <code>user</code> or <code>product</code> store another document’s ObjectId. Mongoose <code>populate()</code> can fetch the related document when needed.</p></article>
+          <article class="info-card"><h3>Transaction</h3><p>For critical order processing, a transaction groups multiple database writes. If one fails, all changes are rolled back, preventing half-finished orders.</p></article>
+        </div>
+      </section>
+
+      <section class="section" id="realtime">
+        <span class="section-no">07</span>
+        <div class="section-head"><h2>Real-time features, payments & files</h2><p>Know why each integration exists.</p></div>
+        <div class="cards three integration-cards">
+          <article class="info-card"><span class="tag violet">Socket.io</span><h3>Live chat</h3><p>Unlike normal request-response HTTP, a WebSocket stays open. The server can instantly emit a message, typing signal, or online status to the other user. Socket authentication verifies the JWT when connecting.</p></article>
+          <article class="info-card"><span class="tag yellow">Fonepay / Razorpay</span><h3>Payments</h3><p>The backend creates and verifies payment data. For Fonepay, a watcher listens for live payment updates, but the server still confirms payment through the payment-status API—never trust a browser-only success message.</p></article>
+          <article class="info-card"><span class="tag pink">Cloudinary</span><h3>Media uploads</h3><p>Multer reads uploaded files in Express. The backend streams them to Cloudinary and stores the returned URL/public ID in MongoDB. It can delete replaced assets too.</p></article>
+        </div>
+      </section>
+
+      <section class="section" id="deployment">
+        <span class="section-no">08</span>
+        <div class="section-head"><h2>Docker, Docker Compose & Nginx</h2><p>These make deployment consistent and production-ready.</p></div>
+        <div class="deployment-flow">
+          <div class="container frontend"><b>Frontend container</b><span>Build React → Nginx serves files</span><small>port 3000</small></div>
+          <div class="container backend"><b>API container</b><span>Node + Express application</span><small>port 5000</small></div>
+          <div class="container redis-c"><b>Redis container</b><span>Bull queue data + healthcheck</span><small>port 6379</small></div>
+        </div>
+        <div class="cards two">
+          <article class="info-card"><h3>Docker in simple words</h3><p>A Docker image is a packaged blueprint. A container is a running copy of that blueprint. Your Dockerfiles build the frontend and backend images using Node 20 Alpine; the frontend final image uses Nginx Alpine.</p></article>
+          <article class="info-card"><h3>Docker Compose in simple words</h3><p>Compose starts the frontend, API, and Redis together on one private bridge network. It passes environment variables, starts Redis before the API using a health check, persists Redis data in a volume, and restarts services if they stop.</p></article>
+        </div>
+        <div class="nginx-grid"><div><b>Nginx serves</b><span>the built React files quickly, with gzip compression and long cache rules for static assets.</span></div><div><b>Nginx proxies</b><span><code>/api/*</code> requests to the API container, so the browser sees one origin and avoids a separate public API URL.</span></div><div><b>SPA fallback</b><span>Unknown frontend URLs return <code>index.html</code>, then React Router chooses the correct page.</span></div></div>
+      </section>
+
+      <section class="section questions" id="questions">
+        <span class="section-no">09</span>
+        <div class="section-head"><h2>Common interview questions</h2><p>Open a question, understand it, then answer in your own words.</p></div>
+        <details open><summary>Why did you use Redis and MongoDB together?</summary><p>They solve different jobs. MongoDB is the source of truth for permanent business data. Redis is extremely fast and is used here by Bull to manage temporary queue state. Redis can also be useful for caching, sessions, or rate limiting, but this project’s main Redis use is the order queue.</p></details>
+        <details><summary>Why use a queue for orders instead of processing directly in the API?</summary><p>Order processing can be slow and critical. A queue smooths traffic spikes, separates the customer request from heavy work, gives a place to retry/monitor failures, and lets us control concurrency. In this project the worker has concurrency 1 to reduce stock conflicts.</p></details>
+        <details><summary>What is the difference between authentication and authorization?</summary><p>Authentication answers “Who are you?”—login and JWT verification. Authorization answers “What are you allowed to do?”—for example, checking that a user is an admin or owns the order before changing it.</p></details>
+        <details><summary>Why access token and refresh token?</summary><p>A short-lived access token limits damage if stolen. The refresh token lasts longer and obtains a new access token, so the user does not need to log in repeatedly. Both must be protected; httpOnly secure cookies are a common safer storage option for refresh tokens.</p></details>
+        <details><summary>How do you prevent overselling?</summary><p>Before confirming an order, validate stock and update it inside a transaction. Queueing serializes the order work in this project, and the transaction rolls back if any operation fails. For larger scale, use atomic conditional updates and carefully chosen concurrency too.</p></details>
+        <details><summary>What does Nginx do in your project?</summary><p>It serves the production React build, compresses and caches static files, sends API requests to Express, supports SPA routing, and forwards important headers/cookies. It is the web server/reverse proxy in front of the application.</p></details>
+        <details><summary>How do you secure the API?</summary><p>I use Helmet, CORS allowlists, rate limiting, password hashing with bcrypt, JWT verification, role/permission checks, request sanitization, HPP protection, upload limits, environment variables for secrets, and centralized error handling. Security is layered, not one feature.</p></details>
+        <details><summary>What would you improve next?</summary><p>I would add queue retries with exponential backoff and a queue dashboard, automated tests, structured logs and monitoring, Redis-backed caching where profiling shows it helps, token rotation/revocation, database indexes based on real queries, and CI/CD checks before deployment.</p></details>
+      </section>
+
+      <footer>Built as a revision guide for your TradEngine e-commerce interview · Keep answers honest: explain what exists, then say what you would improve.</footer>
+    </main>
+  </body>
+</html>

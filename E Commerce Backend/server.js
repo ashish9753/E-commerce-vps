@@ -15,6 +15,7 @@ const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
+    
     // Same allowlist as the REST API so the Render frontend's websocket
     // (chat / live notifications) is accepted, not just localhost.
     origin: (origin, cb) => {
