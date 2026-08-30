@@ -949,8 +949,12 @@ export default function CheckoutPage() {
                   <div onClick={() => setPaymentMethod('FONEPAY')}
                     style={{ border: `2px solid ${paymentMethod === 'FONEPAY' ? '#2563eb' : '#ddd'}`, borderRadius: 6, padding: '16px 18px',
                       background: paymentMethod === 'FONEPAY' ? '#eff6ff' : 'white', display: 'flex', gap: 14, alignItems: 'center', cursor: 'pointer', transition: 'all .15s' }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 8, background: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' }}>
-                      <span style={{ color: 'white', fontWeight: 900, fontSize: 18 }}>QR</span>
+                    <div style={{ width: 130, height: 64, borderRadius: 8, background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', padding: 4 }}>
+                      <img
+                        src="/fonepay-checkout-logo.png"
+                        alt="Checkout by Fonepay"
+                        style={{ width: '100%', height: 'auto', display: 'block' }}
+                      />
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, fontSize: 15 }}>Pay via Fonepay (QR)</div>

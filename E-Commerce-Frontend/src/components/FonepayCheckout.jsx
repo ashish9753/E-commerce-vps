@@ -158,7 +158,17 @@ export default function FonepayCheckout({
         <>
           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ width: 200, flexShrink: 0, border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, background: 'white', textAlign: 'center' }}>
-              <img src={qr.qrImage} alt="Fonepay payment QR" style={{ width: '100%', height: 'auto', display: 'block' }} />
+              <img
+                src="/fonepay-checkout-logo.png"
+                alt="Checkout by Fonepay"
+                style={{ width: 128, maxWidth: '100%', height: 'auto', display: 'block', margin: '0 auto 10px' }}
+              />
+              <div style={{ position: 'relative' }}>
+                <img src={qr.qrImage} alt="Fonepay payment QR" style={{ width: '100%', height: 'auto', display: 'block' }} />
+                <span aria-hidden="true" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', width: 30, height: 30, padding: 4, borderRadius: 4, background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                  <img src="/fonepay-network-mark.png" alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+                </span>
+              </div>
             </div>
             <div style={{ flex: 1, minWidth: 200 }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.06em' }}>
