@@ -25,6 +25,7 @@ import settingsRoutes from "./settings.routes.js";
 import deliveryAreaRoutes from "./deliveryArea.routes.js";
 import ogRoutes from "./og.routes.js";
 import upayaRoutes from "./upaya.routes.js";
+import noteRoutes from "./note.routes.js";
 import { ORDER_TIMEOUT_MIN } from "../jobs/orderTimeout.job.js";
 import ApiResponse from "../utils/ApiResponse.js";
 
@@ -62,5 +63,6 @@ router.use("/settings", settingsRoutes);
 router.use("/delivery-areas", deliveryAreaRoutes);
 router.use("/og", ogRoutes);
 router.use("/upaya", upayaRoutes);
+router.use("/notes", noteRoutes);
 
 export default router;

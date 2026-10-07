@@ -8,6 +8,7 @@ import { useAuth } from './context/AuthContext';
 import { rememberReturnTo, resolveLoginTarget } from './utils/authRedirect';
 import Layout from './components/layout/Layout';
 import HomePage from './pages/HomePage';
+import NotesPage from './pages/NotesPage';
 import ProductListPage from './pages/ProductListPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import CartPage from './pages/CartPage';
@@ -40,6 +41,7 @@ const PAGE_TITLES = {
   '/brands':          'Brands',
   '/events':          'Events & Offers',
   '/social':          'Social Media',
+  '/notes':           'Shared Notes',
   '/compare':         'Compare Products',
   '/cart':            'Cart',
   '/checkout':        'Checkout',
@@ -164,6 +166,7 @@ export default function App() {
         <Route path="/brands" element={<Layout><BrandsPage /></Layout>} />
         <Route path="/events" element={<Layout><EventsPage /></Layout>} />
         <Route path="/social" element={<Layout><SocialMediaPage /></Layout>} />
+        <Route path="/notes" element={<Layout><NotesPage /></Layout>} />
         <Route path="/compare" element={<Layout><ComparePage /></Layout>} />
 
         {/* Auth-optional pages */}
