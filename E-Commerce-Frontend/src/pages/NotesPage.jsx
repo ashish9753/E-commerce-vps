@@ -58,7 +58,7 @@ export default function NotesPage() {
       <div style={{ marginTop: 28 }}>
         <h2 style={{ fontSize: 19, margin: '0 0 14px', color: '#111827' }}>Saved notes <span style={{ color: '#9ca3af', fontSize: 14, fontWeight: 500 }}>({notes.length})</span></h2>
         {loading ? <p style={{ color: '#6b7280' }}>Loading notes…</p> : notes.length === 0 ? <div style={{ padding: 28, border: '1px dashed #d1d5db', borderRadius: 10, color: '#6b7280', textAlign: 'center' }}>No notes yet. Add the first one above.</div> : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
             {notes.map(note => <article key={note._id} style={{ background: '#fffdf7', border: '1px solid #f1e7c9', borderRadius: 10, padding: 17, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}><h3 style={{ margin: '0 0 10px', color: '#111827', fontSize: 17 }}>{note.title}</h3><button type="button" aria-label={`Delete ${note.title}`} title="Delete note" onClick={() => deleteNote(note._id)} style={{ border: 0, background: 'transparent', color: '#9ca3af', cursor: 'pointer', padding: 3 }}><Trash2 size={17} /></button></div>
               <p style={{ margin: 0, color: '#374151', lineHeight: 1.6 }}>{note.content}</p>
