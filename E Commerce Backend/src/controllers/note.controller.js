@@ -10,13 +10,12 @@ export const listNotes = async (_req, res, next) => {
 
 export const createNote = async (req, res, next) => {
   try {
-    const title = String(req.body.title || "").trim();
     const content = String(req.body.content || "").trim();
-    if (!title || !content) return res.status(400).json(new ApiResponse(400, null, "Title and note are required"));
-    if (title.length > 120 || content.length > 10000) {
-      return res.status(400).json(new ApiResponse(400, null, "Title must be 120 characters or less and note must be 10,000 characters or less"));
+    if (!content) return res.status(400).json(new ApiResponse(400, null, "Note content is required"));
+    if (content.length > 10000) {
+      return res.status(400).json(new ApiResponse(400, null, "Note must be 10,000 characters or less"));
     }
-    const note = await Note.create({ title, content });
+    const note = await Note.create({ content });
     res.status(201).json(new ApiResponse(201, { note }, "Note saved"));
   } catch (err) { next(err); }
 };

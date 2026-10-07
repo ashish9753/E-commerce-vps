@@ -166,7 +166,7 @@ export default function App() {
         <Route path="/brands" element={<Layout><BrandsPage /></Layout>} />
         <Route path="/events" element={<Layout><EventsPage /></Layout>} />
         <Route path="/social" element={<Layout><SocialMediaPage /></Layout>} />
-        <Route path="/notes" element={<Layout><NotesPage /></Layout>} />
+        <Route path="/notes" element={<Layout showFooter={false}><NotesPage /></Layout>} />
         <Route path="/compare" element={<Layout><ComparePage /></Layout>} />
 
         {/* Auth-optional pages */}

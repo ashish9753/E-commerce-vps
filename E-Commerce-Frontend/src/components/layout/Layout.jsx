@@ -57,14 +57,14 @@ function AnnouncementBar() {
   );
 }
 
-export default function Layout({ children }) {
+export default function Layout({ children, showFooter = true }) {
   // Social content lives only on the dedicated Media page (/social) via
   // SocialMediaPage — no global teaser strip above the footer on other pages.
   return (
     <>
       <Header />
       <main>{children}</main>
-      <Footer />
+      {showFooter && <Footer />}
       <MobileBottomNav />
     </>
   );

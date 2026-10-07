@@ -398,7 +398,7 @@ export default function Header() {
 
               {/* Right icons */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <button type="button" onClick={() => navigate('/notes')} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 12px', marginRight: 5, borderRadius: 5, border: '1px solid #667085', background: 'transparent', color: 'white', cursor: 'pointer', fontSize: 13, fontWeight: 650, whiteSpace: 'nowrap' }}><FileText size={18} />Notes</button>
+                <button type="button" onClick={() => navigate('/notes')} aria-label="Notes" title="Notes" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '9px 12px', marginRight: 5, borderRadius: 5, border: '1px solid #667085', background: 'transparent', color: 'white', cursor: 'pointer' }}><FileText size={20} /></button>
                 {compareCount > 0 && iconBtn(() => navigate('/compare'), (
                   <>
                     <GitCompare size={22} />
@@ -586,7 +586,7 @@ export default function Header() {
                   border: 'none', borderRadius: '0 4px 4px 0', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                   <Search size={18} color="white" />
                 </button>
-                <button type="button" onClick={() => navTo('/notes')} style={{ height: 40, marginLeft: 8, padding: '0 12px', background: '#202a35', border: '1px solid #667085', borderRadius: 4, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 650 }}><FileText size={16} />Notes</button>
+                <button type="button" onClick={() => navTo('/notes')} aria-label="Notes" title="Notes" style={{ height: 40, width: 42, marginLeft: 8, padding: '0 12px', background: '#202a35', border: '1px solid #667085', borderRadius: 4, color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText size={18} /></button>
               </form>
               {showResults && (
                 <div style={{ position: 'absolute', left: 12, right: 12, top: 'calc(100% - 0px)', background: 'white',
